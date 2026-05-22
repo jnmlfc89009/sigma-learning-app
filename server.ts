@@ -166,19 +166,68 @@ function loadDatabase(): DatabaseSchema {
     return memoryDb;
   }
 
-  if (fs.existsSync(DB_PATH)) {
+  const backupPath = DB_PATH + '.bak';
+
+  const attemptLoad = (targetPath: string): DatabaseSchema | null => {
     try {
-      const content = fs.readFileSync(DB_PATH, 'utf-8');
-      const parsed = JSON.parse(content);
-      // Ensure essential fields exist
-      if (!parsed.users) parsed.users = {};
-      if (!parsed.questions) parsed.questions = allTracks;
-      if (!parsed.securityLogs) parsed.securityLogs = [];
-      memoryDb = parsed;
-      return parsed;
-    } catch (e) {
-      console.error("Database parsing failed, re-initializing", e);
+      if (fs.existsSync(targetPath)) {
+        const content = fs.readFileSync(targetPath, 'utf-8');
+        if (!content || !content.trim()) {
+          console.warn(`File ${targetPath} is empty or whitespace-only.`);
+          return null;
+        }
+        const parsed = JSON.parse(content);
+        // Ensure essential fields exist
+        if (!parsed.users) parsed.users = {};
+        if (!parsed.questions) parsed.questions = allTracks;
+        if (!parsed.securityLogs) parsed.securityLogs = [];
+        return parsed;
+      }
+    } catch (e: any) {
+      console.error(`Database parsing failed for ${targetPath}:`, e.message || e);
     }
+    return null;
+  };
+
+  // 1. Try to load from primary DB_PATH
+  let parsed = attemptLoad(DB_PATH);
+
+  // 2. If load failed or file empty/corrupted, try to restore from backup
+  if (!parsed) {
+    console.warn(`Primary database file (${DB_PATH}) failed to load. Attempting to restore from backup: ${backupPath}`);
+    parsed = attemptLoad(backupPath);
+    if (parsed) {
+      console.info("SUCCESS: Restored database from backup. Re-saving to repair primary file...");
+      // Re-save asynchronously or synchronously to keep it clean, let's do synchronous repair
+      try {
+        fs.writeFileSync(DB_PATH, JSON.stringify(parsed, null, 2), 'utf-8');
+      } catch (repairErr: any) {
+        console.error("Failed to repair primary database from backup on disk:", repairErr.message);
+      }
+    }
+  }
+
+  // 3. If still unsuccessful (e.g., Vercel spin-up or fresh setup), try to restore from seed
+  if (!parsed && isVercel && readDbPath && DB_PATH !== readDbPath) {
+    console.warn(`Attempting self-healing of db.json. Restoring from seed database: ${readDbPath}`);
+    try {
+      fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+      fs.copyFileSync(readDbPath, DB_PATH);
+      parsed = attemptLoad(DB_PATH);
+    } catch (restoreErr: any) {
+      console.error("Self-healing: failed to copy seed database to /tmp:", restoreErr.message);
+    }
+  }
+
+  // 4. Fall back to read-only seed directly
+  if (!parsed && readDbPath) {
+    console.warn(`Falling back to direct loading of readDbPath seed database: ${readDbPath}`);
+    parsed = attemptLoad(readDbPath);
+  }
+
+  if (parsed) {
+    memoryDb = parsed;
+    return parsed;
   }
 
   const initialDB: DatabaseSchema = {
@@ -200,10 +249,20 @@ function loadDatabase(): DatabaseSchema {
 
 function saveDatabase(db: DatabaseSchema) {
   memoryDb = db;
+  const backupPath = DB_PATH + '.bak';
   try {
-    fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), 'utf-8');
-  } catch (err) {
-    console.warn("Vercel read-only filesystem check - Saved modifications successfully in server memory.");
+    const dataString = JSON.stringify(db, null, 2);
+    // 1. Direct write is safer and more reliable than cross-volume renames in containerized runtimes
+    fs.writeFileSync(DB_PATH, dataString, 'utf-8');
+    
+    // 2. Also keep a backup file updated to endure any crash-restarts or disk interruption
+    try {
+      fs.writeFileSync(backupPath, dataString, 'utf-8');
+    } catch (bakErr: any) {
+      console.warn("Minor database backup save warning:", bakErr.message || bakErr);
+    }
+  } catch (err: any) {
+    console.error("Critical: Database write failed. Falling back to memory-only store. Details:", err.message || err);
   }
 }
 
@@ -915,7 +974,9 @@ async function startServer() {
   });
 }
 
-if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
+const isVercelEnv = !!process.env.VERCEL || !!process.env.NOW_REGION;
+
+if (!isVercelEnv) {
   startServer();
 }
 

@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { Shield, Key, Mail, User, Info, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { clientHashPassword, encryptPayload } from '../lib/crypto';
 import { UserProfile } from '../types';
+import { clientDb } from '../lib/clientDb';
 
 interface AuthScreenProps {
   onSuccess: (token: string, user: UserProfile) => void;
@@ -87,40 +88,13 @@ export default function AuthScreen({ onSuccess }: AuthScreenProps) {
       });
 
       // Artificial small delay to let users observe the cryptographic transmission details
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 800));
 
-      const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
-      const payloadBody = isLogin ? {
-        email: emailClean,
-        encryptedPassword: encrypted.cyphertext,
-        iv: encrypted.iv
-      } : {
-        username,
-        email: emailClean,
-        encryptedPassword: encrypted.cyphertext,
-        iv: encrypted.iv,
-        clientTimestamp: timestamp
-      };
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payloadBody)
-      });
-
-      let data: any = null;
-      const text = await response.text();
-      try {
-        data = text ? JSON.parse(text) : null;
-      } catch (e) {
-        if (!response.ok) {
-          throw new Error(text || `Internal server error (${response.status})`);
-        }
-        throw new Error("Unable to parse server-side handshake response.");
-      }
-
-      if (!response.ok) {
-        throw new Error(data?.error || "Authentication transfer error.");
+      let data: { token: string; user: UserProfile };
+      if (isLogin) {
+        data = await clientDb.login(emailClean, passwordHashLocal);
+      } else {
+        data = await clientDb.register(username, emailClean, passwordHashLocal);
       }
 
       onSuccess(data.token, data.user);

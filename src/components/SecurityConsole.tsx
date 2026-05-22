@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Lock, Eye, Key, Terminal, Code, Settings, ListCollapse, RefreshCw } from 'lucide-react';
 import { SecurityAuditLog } from '../types';
+import { clientDb } from '../lib/clientDb';
 
 export default function SecurityConsole() {
   const [logs, setLogs] = useState<SecurityAuditLog[]>([]);
@@ -20,11 +21,8 @@ export default function SecurityConsole() {
   const fetchSecurityLogs = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/security/logs');
-      if (res.ok) {
-        const data = await res.json();
-        setLogs(data);
-      }
+      const data = await clientDb.getSecurityLogs();
+      setLogs(data);
     } catch (err) {
       console.error("Failed to query audit trail", err);
     } finally {

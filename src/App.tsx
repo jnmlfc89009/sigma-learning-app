@@ -27,15 +27,25 @@ import InsightsDashboard from './components/InsightsDashboard';
 import StoreScreen from './components/StoreScreen';
 import SecurityConsole from './components/SecurityConsole';
 import ChatbotWidget from './components/ChatbotWidget';
+import SocialForum from './components/SocialForum';
 import { UserProfile, LearningLevel } from './types';
 import { encryptPayload } from './lib/crypto';
+import { clientDb, getDbConnectionStatus } from './lib/clientDb';
+import { getCompleteTracks } from './data/seedQuestions';
 
 export default function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('sigma_token'));
   const [user, setUser] = useState<UserProfile | null>(null);
   const [levels, setLevels] = useState<LearningLevel[]>([]);
-  const [activeTab, setActiveTab] = useState<'learn' | 'insights' | 'store' | 'security'>('learn');
+  const [activeTab, setActiveTab] = useState<'learn' | 'insights' | 'store' | 'social' | 'security'>('learn');
   const [activeTrack, setActiveTrack] = useState<'personalFinance' | 'accounting' | 'statistics' | 'appliedMath'>('personalFinance');
+
+  // Supabase dynamic database configuration modal states
+  const [showDbModal, setShowDbModal] = useState(false);
+  const [dbStatus, setDbStatus] = useState(() => getDbConnectionStatus());
+  const [customDbUrl, setCustomDbUrl] = useState(() => localStorage.getItem('sigma_supabase_url') || '');
+  const [customDbKey, setCustomDbKey] = useState(() => localStorage.getItem('sigma_supabase_key') || '');
+  const [dbSavedFeedback, setDbSavedFeedback] = useState(false);
   
   // Developer inspector access toggling for standard users
   const [showDev, setShowDev] = useState(() => {
@@ -77,21 +87,15 @@ export default function App() {
   useEffect(() => {
     const startAppLoad = async () => {
       try {
-        // Find academic questions
-        const levelRes = await fetch('/api/questions');
-        if (levelRes.ok) {
-          const lData = await levelRes.json();
-          setLevels(lData);
-        }
+        // Find academic questions directly from local in-memory tracks
+        const tracks = getCompleteTracks();
+        setLevels(tracks);
 
-        // Verify existing profile session
+        // Verify existing profile session directly from database
         if (token) {
-          const profRes = await fetch('/api/profile', {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-          if (profRes.ok) {
-            const pData = await profRes.json();
-            setUser(pData);
+          const liveUser = await clientDb.getUser(token);
+          if (liveUser) {
+            setUser(liveUser);
           } else {
             // Expired or bad token
             handleSignOut();
@@ -122,52 +126,47 @@ export default function App() {
   };
 
   const handleSelectAnalystTrack = async (track: 'personalFinance' | 'accounting' | 'statistics'): Promise<string | null> => {
-    if (!token) return "No token session found.";
+    if (!user) return "No active session.";
     try {
-      const res = await fetch('/api/profile/select-track', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ track })
-      });
-      if (res.ok) {
-        const updatedUser = await res.json();
-        setUser(updatedUser);
-        return null;
-      } else {
-        const err = await res.json();
-        return err.error || "Failed to select track.";
-      }
-    } catch (err) {
+      const updatedUser: UserProfile = {
+        ...user,
+        unlockedTrack: track
+      };
+      await clientDb.saveUser(updatedUser);
+      setUser(updatedUser);
+      return null;
+    } catch (err: any) {
       console.error("Select track error:", err);
-      return "Network connection issue.";
+      return err?.message || "Failed to select track.";
     }
   };
 
   const handleUnlockLevelWithGems = async (track: string, levelNumber: number): Promise<string | null> => {
-    if (!token) return "No token session found.";
+    if (!user) return "No active session.";
+    if (user.gems < 50) {
+      return "Insufficient starting capital. Complete courses to earn more gems!";
+    }
+
     try {
-      const res = await fetch('/api/profile/unlock-level', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ track, levelNumber })
-      });
-      if (res.ok) {
-        const updatedUser = await res.json();
-        setUser(updatedUser);
-        return null;
-      } else {
-        const err = await res.json();
-        return err.error || "Failed to transaction gems.";
+      const unlockedLevels = { ...(user.unlockedLevels || {}) };
+      if (!unlockedLevels[track]) {
+        unlockedLevels[track] = [];
       }
-    } catch (err) {
+      if (!unlockedLevels[track].includes(levelNumber)) {
+        unlockedLevels[track].push(levelNumber);
+      }
+
+      const updatedUser: UserProfile = {
+        ...user,
+        gems: user.gems - 50,
+        unlockedLevels
+      };
+      await clientDb.saveUser(updatedUser);
+      setUser(updatedUser);
+      return null;
+    } catch (err: any) {
       console.error("Unlock level error:", err);
-      return "Network connection issue.";
+      return err?.message || "Failed to transaction gems.";
     }
   };
 
@@ -186,46 +185,56 @@ export default function App() {
     gemsAwarded: number, 
     streakIncrement: number
   ) => {
-    if (!token || !user || !activeLesson) return;
+    if (!user || !activeLesson) return;
 
     try {
-      // 1. Prepare raw payload JSON representing completed parameters
-      const plainPayload = JSON.stringify({
-        track: activeLesson.track,
-        levelNumber: activeLesson.levelNumber,
-        progressPercent: scorePercent,
-        starsEarned,
-        gemsAwarded,
-        streakIncrement
-      });
-
-      // 2. Encrypt using simulated AES and register transport blocks
-      const iv = Array.from({ length: 12 }, () => Math.floor(Math.random() * 256))
-        .map(b => b.toString(16).padStart(2, "0"))
-        .join("");
-        
-      const secretKey = 'SIGMA_LEARNING_SUPER_SECRET_KEY_FOR_JWT_AND_AES';
-      const encrypted = encryptPayload(plainPayload, secretKey);
-
-      // 3. Make POST
-      const res = await fetch('/api/profile/progress', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          encryptedPayload: encrypted.cyphertext,
-          iv: encrypted.iv
-        })
-      });
-
-      if (res.ok) {
-        const updatedUser = await res.json();
-        setUser(updatedUser);
+      const track = activeLesson.track;
+      const level = activeLesson.levelNumber;
+      
+      const currentProgress = { ...(user.progress || {}) } as any;
+      if (!currentProgress[track]) {
+        currentProgress[track] = { level: 1, progressPercent: 0, completedLevels: {} };
       }
 
+      const trackProg = currentProgress[track];
+      const comps = { ...(trackProg.completedLevels || {}) };
+      const existingComp = comps[level];
+      const maxStars = Math.max(existingComp?.stars || 0, starsEarned);
+
+      comps[level] = {
+        stars: maxStars,
+        completedAt: new Date().toISOString()
+      };
+
+      let nextLevel = trackProg.level;
+      if (level === trackProg.level && scorePercent >= 60) {
+        nextLevel = Math.min(12, trackProg.level + 1);
+      }
+
+      currentProgress[track] = {
+        ...trackProg,
+        level: nextLevel,
+        progressPercent: Math.max(trackProg.progressPercent || 0, scorePercent),
+        completedLevels: comps
+      };
+
+      const updatedUser: UserProfile = {
+        ...user,
+        gems: user.gems + gemsAwarded,
+        streak: user.streak + streakIncrement,
+        progress: currentProgress
+      };
+
+      await clientDb.saveUser(updatedUser);
+      setUser(updatedUser);
       setActiveLesson(null);
+
+      await clientDb.logSecurityAction(
+        "PROGRESS_UPDATED",
+        `User completed level ${level} on track ${track}. Score: ${scorePercent}%, Stars: ${starsEarned}/${maxStars}.`,
+        `Gems: +${gemsAwarded}, Streak: +${streakIncrement}`,
+        true
+      );
     } catch (err) {
       console.error("Progress save transfer failed:", err);
     }
@@ -235,23 +244,25 @@ export default function App() {
     tier: 'scholar' | 'analyst' | 'magnate', 
     billingCycle: 'monthly' | 'annual'
   ) => {
-    if (!token) return;
-    const res = await fetch('/api/profile/purchase', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ tier, billingCycle })
-    });
+    if (!user) return;
+    try {
+      const updatedUser: UserProfile = {
+        ...user,
+        tier,
+        billingCycle
+      };
+      await clientDb.saveUser(updatedUser);
+      setUser(updatedUser);
 
-    if (!res.ok) {
-      const errData = await res.json();
-      throw new Error(errData.error || "Subscription purchase failed.");
+      await clientDb.logSecurityAction(
+        "BILLING_PREMIUM_UPGRADE",
+        `Upgraded to ${tier.toUpperCase()} tier (${billingCycle} billing cycle) direct client-side simulated authorization.`,
+        undefined,
+        true
+      );
+    } catch (err: any) {
+      throw new Error(err?.message || "Subscription purchase failed.");
     }
-
-    const updatedUser = await res.json();
-    setUser(updatedUser);
   };
 
   const handleSpendGems = async (
@@ -260,43 +271,58 @@ export default function App() {
     itemType: string, 
     itemValue?: string
   ) => {
-    if (!token) return;
-    const res = await fetch('/api/profile/buy-item', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ itemId, price, itemType, itemValue })
-    });
-
-    if (!res.ok) {
-      const errData = await res.json();
-      throw new Error(errData.error || "Gems transaction failed.");
+    if (!user) return;
+    if (user.gems < price) {
+      throw new Error("Insufficient gems budget.");
     }
 
-    const updatedUser = await res.json();
-    setUser(updatedUser);
+    try {
+      const unlockedItems = [...(user.unlockedItems || [])];
+      if (!unlockedItems.includes(itemId)) {
+        unlockedItems.push(itemId);
+      }
+
+      const updatedUser: UserProfile = {
+        ...user,
+        gems: user.gems - price,
+        unlockedItems,
+        activeTitle: itemType === 'title' ? (itemValue || itemId) : user.activeTitle,
+        avatarSeed: itemType === 'avatar' ? (itemValue || user.avatarSeed) : user.avatarSeed
+      };
+
+      await clientDb.saveUser(updatedUser);
+      setUser(updatedUser);
+
+      await clientDb.logSecurityAction(
+        "STORE_PURCHASE",
+        `Purchased ${itemId} for ${price} gems. Remaining balance: ${updatedUser.gems} gems.`,
+        undefined,
+        true
+      );
+    } catch (err: any) {
+      throw new Error(err?.message || "Gems transaction failed.");
+    }
   };
 
   const handlePurchaseGems = async (packId: string, gemAmount: number, price: number) => {
-    if (!token) return;
-    const res = await fetch('/api/profile/purchase-gems', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ packId, gemAmount, price })
-    });
+    if (!user) return;
+    try {
+      const updatedUser: UserProfile = {
+        ...user,
+        gems: user.gems + gemAmount
+      };
+      await clientDb.saveUser(updatedUser);
+      setUser(updatedUser);
 
-    if (!res.ok) {
-      const errData = await res.json();
-      throw new Error(errData.error || "Gems purchase failed.");
+      await clientDb.logSecurityAction(
+        "GEMS_PURCHASED",
+        `Gems topup: +${gemAmount} gems loaded. Price: $${price} (Simulated Auth Code).`,
+        undefined,
+        true
+      );
+    } catch (err: any) {
+      throw new Error(err?.message || "Gems purchase failed.");
     }
-
-    const updatedUser = await res.json();
-    setUser(updatedUser);
   };
 
   if (loading) {
@@ -374,6 +400,7 @@ export default function App() {
             >
               Math Sandbox
             </button>
+            <input type="hidden" name="active-tab" value={activeTab} />
             <button
               onClick={() => setActiveTab('store')}
               className={`px-4 py-2 rounded-xl transition ${
@@ -383,6 +410,16 @@ export default function App() {
               }`}
             >
               Premium Store
+            </button>
+            <button
+              onClick={() => setActiveTab('social')}
+              className={`px-4 py-2 rounded-xl transition ${
+                activeTab === 'social' 
+                  ? "bg-slate-100 text-brand-primary font-black" 
+                  : "text-slate-500 hover:bg-slate-50"
+              }`}
+            >
+              Social Hub
             </button>
             {showDev && (
               <button
@@ -431,6 +468,23 @@ export default function App() {
               {user.tier === 'scholar' ? 'Scholar Plan' : user.tier + ' Premium'}
             </span>
 
+            {/* Supabase Connection Status Badge */}
+            <button
+              onClick={() => {
+                setDbStatus(getDbConnectionStatus());
+                setShowDbModal(true);
+              }}
+              className={`flex items-center gap-1 bg-white border px-2 py-1 rounded-xl text-[10px] font-bold font-mono transition shadow-xs active:scale-95 ${
+                dbStatus.mode === 'supabase'
+                  ? 'text-emerald-700 bg-emerald-50 border-emerald-200 hover:bg-emerald-100/50'
+                  : 'text-amber-700 bg-amber-50 border-amber-200 hover:bg-amber-100/50'
+              }`}
+              title="Click to check, test, or configure your database keys"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${dbStatus.mode === 'supabase' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
+              <span>{dbStatus.mode === 'supabase' ? 'SUPABASE ACTIVE' : 'LOCAL CACHE'}</span>
+            </button>
+
             {/* Quick Profile Dropdown trigger */}
             <button
               onClick={handleSignOut}
@@ -470,6 +524,12 @@ export default function App() {
               className="w-full text-left px-4 py-2 text-slate-700 hover:bg-slate-50 block"
             >
               Premium Store
+            </button>
+            <button
+              onClick={() => { setActiveTab('social'); setMenuOpen(false); }}
+              className="w-full text-left px-4 py-2 text-slate-700 hover:bg-slate-50 block"
+            >
+              Social Hub
             </button>
             {showDev && (
               <button
@@ -511,6 +571,10 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'social' && (
+          <SocialForum />
+        )}
+
         {activeTab === 'security' && (
           <SecurityConsole />
         )}
@@ -531,6 +595,153 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* 4. Interactive Supabase Database Credentials Diagnostics Dialog */}
+      {showDbModal && (
+        <div id="supabase-diagnostics-modal" className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[1000] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 max-w-xl w-full space-y-6 animate-pop max-h-[90vh] overflow-y-auto">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className={`p-2 rounded-xl ${dbStatus.mode === 'supabase' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'}`}>
+                  <Shield className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="font-display font-black text-lg text-slate-900 tracking-tight">Database Cluster Connection</h3>
+                  <p className="text-xs text-slate-500 font-sans">Verify, test, and adapt cloud data telemetry settings</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowDbModal(false);
+                  setDbSavedFeedback(false);
+                }}
+                className="text-slate-400 hover:text-slate-650 bg-slate-105 p-1.5 rounded-lg w-7 h-7 flex items-center justify-center font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Live Indicator */}
+            <div className={`p-4 rounded-2xl border text-sm flex gap-3 items-center ${
+              dbStatus.mode === 'supabase' 
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}>
+              <div className={`w-3 h-3 rounded-full shrink-0 ${dbStatus.mode === 'supabase' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'}`} />
+              <div>
+                <p className="font-bold underline uppercase font-mono text-xs">{dbStatus.mode === 'supabase' ? 'Supabase Connection Verified' : 'Offline Local Sandbox Mode Activated'}</p>
+                <p className="text-xs font-sans mt-1">
+                  {dbStatus.mode === 'supabase' 
+                    ? `Synthesized handshakes successfully configured to: ${dbStatus.supabaseUrl}`
+                    : 'Your progress is stored immediately on your computer inside LocalStorage. Configure your Supabase credentials below to synchronize learning state with your cloud postgreSQL cluster!'}
+                </p>
+                {dbStatus.error && (
+                  <p className="text-[10.5px] font-mono text-red-700 bg-red-50 p-2 rounded-lg mt-2 border border-red-200">
+                    Connection Error: {dbStatus.error}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Configuration Inputs */}
+            <div className="space-y-4">
+              <div>
+                <label className="text-[11px] font-extrabold uppercase text-slate-500 tracking-wider font-mono block mb-1.5">
+                  Supabase Project URL
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. your-project-id.supabase.co"
+                  value={customDbUrl}
+                  onChange={(e) => setCustomDbUrl(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl font-mono text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-secondary"
+                />
+                <span className="text-[10px] text-slate-400 font-sans block mt-1">
+                  Leave empty to read from default environment parameters, or enter custom URL to override.
+                </span>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-extrabold uppercase text-slate-500 tracking-wider font-mono block mb-1.5">
+                  Supabase API Key (Anon / Service Role)
+                </label>
+                <input
+                  type="password"
+                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIs..."
+                  value={customDbKey}
+                  onChange={(e) => setCustomDbKey(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 px-3 py-2.5 rounded-xl font-mono text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-secondary"
+                />
+                <span className="text-[10px] text-slate-400 font-sans block mt-1">
+                  Direct client connections require the cloud API key to register tables on behalf of the client.
+                </span>
+              </div>
+            </div>
+
+            {/* Instruction SQL Help */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+              <h4 className="font-extrabold uppercase font-mono text-[10.5px] text-slate-650 flex items-center gap-1.5">
+                <span>📋 Setup Your Supabase Database Tables</span>
+              </h4>
+              <p className="text-[11px] text-slate-500 font-sans leading-relaxed">
+                Make sure you initialize your cluster! Run the SQL content inside your 
+                <strong> Supabase SQL Editor</strong> to create the necessary <code>users</code> and <code>security_logs</code> structures. 
+                The setup script is located in the root of this project: <code>/supabase-schema.sql</code>.
+              </p>
+            </div>
+
+            {/* Actions Footer */}
+            <p className="text-[10px] text-center text-slate-400">
+              Saving credentials caches settings inside your web browser secure storage and reloads the interface.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => {
+                  if (customDbUrl.trim()) {
+                    localStorage.setItem('sigma_supabase_url', customDbUrl.trim());
+                  } else {
+                    localStorage.removeItem('sigma_supabase_url');
+                  }
+                  
+                  if (customDbKey.trim()) {
+                    localStorage.setItem('sigma_supabase_key', customDbKey.trim());
+                  } else {
+                    localStorage.removeItem('sigma_supabase_key');
+                  }
+
+                  setDbSavedFeedback(true);
+                  setTimeout(() => {
+                    window.location.reload();
+                  }, 1100);
+                }}
+                className="flex-grow bg-slate-900 border-b-4 border-black text-white hover:bg-slate-950 px-4 py-3 rounded-xl font-mono text-xs font-black uppercase text-center tracking-widest active:border-b-0 transition"
+              >
+                {dbSavedFeedback ? "applying config..." : "Save and Sync Keys"}
+              </button>
+
+              <button
+                onClick={() => {
+                  localStorage.removeItem('sigma_supabase_url');
+                  localStorage.removeItem('sigma_supabase_key');
+                  setCustomDbUrl('');
+                  setCustomDbKey('');
+                  setDbSavedFeedback(true);
+                  setTimeout(() => {
+                    window.location.reload();
+                  }, 1100);
+                }}
+                className="border border-slate-200 border-b-4 hover:bg-slate-50 px-4 py-3 rounded-xl font-mono text-xs font-bold text-slate-600 uppercase text-center active:border-b-0 transition"
+              >
+                Reset Fallback
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {/* Floating Developer Mode Notification Toast */}
       {devToast && (
