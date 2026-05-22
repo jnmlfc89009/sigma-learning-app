@@ -32,9 +32,10 @@ import { UserProfile, LearningLevel } from './types';
 import { encryptPayload } from './lib/crypto';
 import { clientDb, getDbConnectionStatus } from './lib/clientDb';
 import { getCompleteTracks } from './data/seedQuestions';
+import { safeStorage } from './lib/safeStorage';
 
 export default function App() {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('sigma_token'));
+  const [token, setToken] = useState<string | null>(() => safeStorage.getItem('sigma_token'));
   const [user, setUser] = useState<UserProfile | null>(null);
   const [levels, setLevels] = useState<LearningLevel[]>([]);
   const [activeTab, setActiveTab] = useState<'learn' | 'insights' | 'store' | 'social' | 'security'>('learn');
@@ -43,15 +44,15 @@ export default function App() {
   // Supabase dynamic database configuration modal states
   const [showDbModal, setShowDbModal] = useState(false);
   const [dbStatus, setDbStatus] = useState(() => getDbConnectionStatus());
-  const [customDbUrl, setCustomDbUrl] = useState(() => localStorage.getItem('sigma_supabase_url') || '');
-  const [customDbKey, setCustomDbKey] = useState(() => localStorage.getItem('sigma_supabase_key') || '');
+  const [customDbUrl, setCustomDbUrl] = useState(() => safeStorage.getItem('sigma_supabase_url') || '');
+  const [customDbKey, setCustomDbKey] = useState(() => safeStorage.getItem('sigma_supabase_key') || '');
   const [dbSavedFeedback, setDbSavedFeedback] = useState(false);
   
   // Developer inspector access toggling for standard users
   const [showDev, setShowDev] = useState(() => {
     return typeof window !== 'undefined' && (
       window.location.search.includes('dev=true') || 
-      localStorage.getItem('sigma_dev') === 'true'
+      safeStorage.getItem('sigma_dev') === 'true'
     );
   });
   const [devClickCount, setDevClickCount] = useState(0);
@@ -63,7 +64,7 @@ export default function App() {
     if (next >= 5) {
       const newVal = !showDev;
       setShowDev(newVal);
-      localStorage.setItem('sigma_dev', newVal ? 'true' : 'false');
+      safeStorage.setItem('sigma_dev', newVal ? 'true' : 'false');
       setDevToast(`Developer Inspector ${newVal ? 'ENABLED' : 'DISABLED'}! Cryptographic monitors are now ${newVal ? 'visible' : 'hidden'}.`);
       setDevClickCount(0);
       if (!newVal && activeTab === 'security') {
@@ -111,14 +112,14 @@ export default function App() {
   }, [token]);
 
   const handleAuthSuccess = (newToken: string, newUser: UserProfile) => {
-    localStorage.setItem('sigma_token', newToken);
+    safeStorage.setItem('sigma_token', newToken);
     setToken(newToken);
     setUser(newUser);
     setActiveTab('learn');
   };
 
   const handleSignOut = () => {
-    localStorage.removeItem('sigma_token');
+    safeStorage.removeItem('sigma_token');
     setToken(null);
     setUser(null);
     setActiveLesson(null);
@@ -701,15 +702,15 @@ export default function App() {
               <button
                 onClick={() => {
                   if (customDbUrl.trim()) {
-                    localStorage.setItem('sigma_supabase_url', customDbUrl.trim());
+                    safeStorage.setItem('sigma_supabase_url', customDbUrl.trim());
                   } else {
-                    localStorage.removeItem('sigma_supabase_url');
+                    safeStorage.removeItem('sigma_supabase_url');
                   }
                   
                   if (customDbKey.trim()) {
-                    localStorage.setItem('sigma_supabase_key', customDbKey.trim());
+                    safeStorage.setItem('sigma_supabase_key', customDbKey.trim());
                   } else {
-                    localStorage.removeItem('sigma_supabase_key');
+                    safeStorage.removeItem('sigma_supabase_key');
                   }
 
                   setDbSavedFeedback(true);
@@ -724,8 +725,8 @@ export default function App() {
 
               <button
                 onClick={() => {
-                  localStorage.removeItem('sigma_supabase_url');
-                  localStorage.removeItem('sigma_supabase_key');
+                  safeStorage.removeItem('sigma_supabase_url');
+                  safeStorage.removeItem('sigma_supabase_key');
                   setCustomDbUrl('');
                   setCustomDbKey('');
                   setDbSavedFeedback(true);

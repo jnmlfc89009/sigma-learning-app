@@ -8,6 +8,7 @@ import { Shield, Key, Mail, User, Info, ArrowRight, Eye, EyeOff } from 'lucide-r
 import { clientHashPassword, encryptPayload } from '../lib/crypto';
 import { UserProfile } from '../types';
 import { clientDb } from '../lib/clientDb';
+import { safeStorage } from '../lib/safeStorage';
 
 interface AuthScreenProps {
   onSuccess: (token: string, user: UserProfile) => void;
@@ -26,7 +27,7 @@ export default function AuthScreen({ onSuccess }: AuthScreenProps) {
   const [showDev, setShowDev] = useState(() => {
     return typeof window !== 'undefined' && (
       window.location.search.includes('dev=true') || 
-      localStorage.getItem('sigma_dev') === 'true'
+      safeStorage.getItem('sigma_dev') === 'true'
     );
   });
   const [clickCount, setClickCount] = useState(0);
@@ -38,7 +39,7 @@ export default function AuthScreen({ onSuccess }: AuthScreenProps) {
     if (next >= 5) {
       const newVal = !showDev;
       setShowDev(newVal);
-      localStorage.setItem('sigma_dev', newVal ? 'true' : 'false');
+      safeStorage.setItem('sigma_dev', newVal ? 'true' : 'false');
       setDevToast(`Developer Inspector ${newVal ? 'ENABLED' : 'DISABLED'}! Cryptographic monitors are now ${newVal ? 'visible' : 'hidden'}.`);
       setClickCount(0);
       setTimeout(() => setDevToast(''), 4500);

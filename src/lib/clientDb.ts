@@ -6,6 +6,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { UserProfile, SecurityAuditLog } from '../types';
 import { clientHashPassword } from './crypto';
+import { safeStorage } from './safeStorage';
 
 // Setup global or state-persistent Supabase client instance
 let clientInstance: SupabaseClient | null = null;
@@ -21,8 +22,8 @@ export function initializeSupabaseClient(): SupabaseClient | null {
   let key = (import.meta as any).env?.VITE_SUPABASE_SERVICE_ROLE_KEY || (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
 
   // 2. Try non-prefixed local storage settings (user customization dashboard)
-  const customUrl = localStorage.getItem('sigma_supabase_url');
-  const customKey = localStorage.getItem('sigma_supabase_key');
+  const customUrl = safeStorage.getItem('sigma_supabase_url');
+  const customKey = safeStorage.getItem('sigma_supabase_key');
 
   if (customUrl) url = customUrl.trim();
   if (customKey) key = customKey.trim();
@@ -62,7 +63,7 @@ export function initializeSupabaseClient(): SupabaseClient | null {
 // Check database connection mode
 export function getDbConnectionStatus() {
   initializeSupabaseClient();
-  let url = (import.meta as any).env?.VITE_SUPABASE_URL || localStorage.getItem('sigma_supabase_url') || '';
+  let url = (import.meta as any).env?.VITE_SUPABASE_URL || safeStorage.getItem('sigma_supabase_url') || '';
   url = url.replace(/^['"]|['"]$/g, '').trim();
 
   return {
@@ -120,7 +121,7 @@ function fromDbUser(row: any): UserProfile | null {
 // LOCALSTORAGE FALLBACK ENGINE
 function getLocalUsers(): Record<string, any> {
   try {
-    const raw = localStorage.getItem('sigma_local_users');
+    const raw = safeStorage.getItem('sigma_local_users');
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
@@ -128,12 +129,16 @@ function getLocalUsers(): Record<string, any> {
 }
 
 function saveLocalUsers(users: Record<string, any>) {
-  localStorage.setItem('sigma_local_users', JSON.stringify(users));
+  try {
+    safeStorage.setItem('sigma_local_users', JSON.stringify(users));
+  } catch (e) {
+    console.error("Failed to persist users to safeStorage:", e);
+  }
 }
 
 function getLocalLogs(): SecurityAuditLog[] {
   try {
-    const raw = localStorage.getItem('sigma_local_logs');
+    const raw = safeStorage.getItem('sigma_local_logs');
     return raw ? JSON.parse(raw) : [{
       timestamp: new Date().toISOString(),
       action: "DATABASE_INITIALIZATION",
@@ -146,7 +151,11 @@ function getLocalLogs(): SecurityAuditLog[] {
 }
 
 function saveLocalLogs(logs: SecurityAuditLog[]) {
-  localStorage.setItem('sigma_local_logs', JSON.stringify(logs));
+  try {
+    safeStorage.setItem('sigma_local_logs', JSON.stringify(logs));
+  } catch (e) {
+    console.error("Failed to persist logs to safeStorage:", e);
+  }
 }
 
 // EXPORTED DIRECT CLIENT CLIENT-SIDE DATABASE COMMANDS (MATCHES Express API)

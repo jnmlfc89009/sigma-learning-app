@@ -250,14 +250,18 @@ function loadDatabase(): DatabaseSchema {
 function saveDatabase(db: DatabaseSchema) {
   memoryDb = db;
   const backupPath = DB_PATH + '.bak';
+  const tempPath = DB_PATH + '.tmp';
   try {
     const dataString = JSON.stringify(db, null, 2);
-    // 1. Direct write is safer and more reliable than cross-volume renames in containerized runtimes
-    fs.writeFileSync(DB_PATH, dataString, 'utf-8');
+    // 1. Atomic write using temporary file to avoid partial writes during reload/restart
+    fs.writeFileSync(tempPath, dataString, 'utf-8');
+    fs.renameSync(tempPath, DB_PATH);
     
     // 2. Also keep a backup file updated to endure any crash-restarts or disk interruption
+    const tempBackupPath = backupPath + '.tmp';
     try {
-      fs.writeFileSync(backupPath, dataString, 'utf-8');
+      fs.writeFileSync(tempBackupPath, dataString, 'utf-8');
+      fs.renameSync(tempBackupPath, backupPath);
     } catch (bakErr: any) {
       console.warn("Minor database backup save warning:", bakErr.message || bakErr);
     }
