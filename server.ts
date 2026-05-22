@@ -12,12 +12,16 @@ import { createClient } from '@supabase/supabase-js';
 import { createServer as createViteServer } from 'vite';
 import { getCompleteTracks } from './src/data/seedQuestions';
 import { UserProfile, SecurityAuditLog } from './src/types';
+import { fileURLToPath } from 'url';
 
 // Load environmental parameters (local .env or cloud system credentials)
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Find the readable seed database path across multiple environments
 let readDbPath = '';
