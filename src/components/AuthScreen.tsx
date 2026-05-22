@@ -21,6 +21,29 @@ export default function AuthScreen({ onSuccess }: AuthScreenProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
+  // Developer mode bypass to hide technical larpy monitors from standard users
+  const [showDev, setShowDev] = useState(() => {
+    return typeof window !== 'undefined' && (
+      window.location.search.includes('dev=true') || 
+      localStorage.getItem('sigma_dev') === 'true'
+    );
+  });
+  const [clickCount, setClickCount] = useState(0);
+  const [devToast, setDevToast] = useState('');
+
+  const handleLogoClick = () => {
+    const next = clickCount + 1;
+    setClickCount(next);
+    if (next >= 5) {
+      const newVal = !showDev;
+      setShowDev(newVal);
+      localStorage.setItem('sigma_dev', newVal ? 'true' : 'false');
+      setDevToast(`Developer Inspector ${newVal ? 'ENABLED' : 'DISABLED'}! Cryptographic monitors are now ${newVal ? 'visible' : 'hidden'}.`);
+      setClickCount(0);
+      setTimeout(() => setDevToast(''), 4500);
+    }
+  };
+
   // Security visualizer states
   const [transitDetails, setTransitDetails] = useState<{
     rawPayload: string;
@@ -111,7 +134,11 @@ export default function AuthScreen({ onSuccess }: AuthScreenProps) {
         </div>
 
         <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-12">
+          <div 
+            onClick={handleLogoClick}
+            className="flex items-center gap-2 mb-12 cursor-pointer hover:opacity-90 select-none active:scale-95 transition w-fit"
+            title="Click 5 times to toggle Developer Inspector Mode"
+          >
             <div className="w-10 h-10 rounded-xl bg-brand-secondary flex items-center justify-center p-2 border-b-2 border-teal-900 shadow">
               <span className="text-white font-mono font-bold text-xl">Σ</span>
             </div>
@@ -131,44 +158,53 @@ export default function AuthScreen({ onSuccess }: AuthScreenProps) {
           </div>
         </div>
 
-        {/* Cryptographic Transmission Visualizer */}
-        <div className="relative z-10 mt-12 bg-slate-900/80 border border-slate-700/50 rounded-2xl p-6 font-mono text-xs backdrop-blur">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
-            <div className="flex items-center gap-2 text-teal-400">
-              <Shield className="w-4 h-4" />
-              <span>TLS / END-TO-END TRANSMISSION MONITOR</span>
-            </div>
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        {/* Developer Floating Action Toast toast */}
+        {devToast && (
+          <div className="absolute top-4 left-4 right-4 bg-slate-900 text-teal-400 border border-teal-500/50 p-3 rounded-xl shadow-lg font-mono text-center text-xs z-50 animate-bounce">
+            💡 {devToast}
           </div>
-          
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Plaintext Client Hashing:</span>
-              <span className="text-slate-300">{loading ? "Computing SHA-256..." : "Standby (Awaiting Input)"}</span>
-            </div>
-            {transitDetails ? (
-              <>
-                <div className="bg-slate-950 p-2 rounded border border-slate-800">
-                  <span className="text-yellow-400 font-bold">Client Passphrase stretched payload:</span>
-                  <p className="text-slate-400 break-all mt-1">{transitDetails.rawPayload}</p>
-                </div>
-                <div className="bg-slate-950 p-2 rounded border border-slate-800">
-                  <span className="text-teal-400 font-bold">AES Transmitted Ciphertext:</span>
-                  <p className="text-emerald-400 break-all mt-1">{transitDetails.encryptedHex}</p>
-                  <p className="text-[10px] text-slate-500 mt-1">IV (Initial vector): {transitDetails.ivUsed}</p>
-                </div>
-                <div className="flex items-center gap-1.5 text-[10px] text-teal-500">
-                  <Info className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span>The raw password is encrypted client-side and sent as encrypted blocks, keeping it mathematically secure.</span>
-                </div>
-              </>
-            ) : (
-              <div className="text-slate-600 text-center py-6 border border-dashed border-slate-800 rounded bg-slate-950/40">
-                Enter your credentials on the right to trigger secure key hashes.
+        )}
+
+        {/* Cryptographic Transmission Visualizer - only shown when showDev is enabled */}
+        {showDev && (
+          <div className="relative z-10 mt-12 bg-slate-900/80 border border-slate-700/50 rounded-2xl p-6 font-mono text-xs backdrop-blur animate-fade-in">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+              <div className="flex items-center gap-2 text-teal-400">
+                <Shield className="w-4 h-4" />
+                <span>TLS / END-TO-END TRANSMISSION MONITOR (DEV MODE)</span>
               </div>
-            )}
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Plaintext Client Hashing:</span>
+                <span className="text-slate-300">{loading ? "Computing SHA-256..." : "Standby (Awaiting Input)"}</span>
+              </div>
+              {transitDetails ? (
+                <>
+                  <div className="bg-slate-950 p-2 rounded border border-slate-800">
+                    <span className="text-yellow-400 font-bold">Client Passphrase stretched payload:</span>
+                    <p className="text-slate-400 break-all mt-1">{transitDetails.rawPayload}</p>
+                  </div>
+                  <div className="bg-slate-950 p-2 rounded border border-slate-800">
+                    <span className="text-teal-400 font-bold">AES Transmitted Ciphertext:</span>
+                    <p className="text-emerald-400 break-all mt-1">{transitDetails.encryptedHex}</p>
+                    <p className="text-[10px] text-slate-500 mt-1">IV (Initial vector): {transitDetails.ivUsed}</p>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[10px] text-teal-500">
+                    <Info className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>The raw password is encrypted client-side and sent as encrypted blocks, keeping it mathematically secure.</span>
+                  </div>
+                </>
+              ) : (
+                <div className="text-slate-600 text-center py-6 border border-dashed border-slate-800 rounded bg-slate-950/40">
+                  Enter your credentials on the right to trigger secure key hashes.
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="relative z-10 text-xs text-slate-400 mt-6 flex justify-between items-center">
           <span>MIT OpenCourseWare Reference syllabus © 2026</span>

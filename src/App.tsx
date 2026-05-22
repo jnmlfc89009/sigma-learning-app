@@ -37,6 +37,32 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'learn' | 'insights' | 'store' | 'security'>('learn');
   const [activeTrack, setActiveTrack] = useState<'personalFinance' | 'accounting' | 'statistics' | 'appliedMath'>('personalFinance');
   
+  // Developer inspector access toggling for standard users
+  const [showDev, setShowDev] = useState(() => {
+    return typeof window !== 'undefined' && (
+      window.location.search.includes('dev=true') || 
+      localStorage.getItem('sigma_dev') === 'true'
+    );
+  });
+  const [devClickCount, setDevClickCount] = useState(0);
+  const [devToast, setDevToast] = useState('');
+
+  const handleDevToggle = () => {
+    const next = devClickCount + 1;
+    setDevClickCount(next);
+    if (next >= 5) {
+      const newVal = !showDev;
+      setShowDev(newVal);
+      localStorage.setItem('sigma_dev', newVal ? 'true' : 'false');
+      setDevToast(`Developer Inspector ${newVal ? 'ENABLED' : 'DISABLED'}! Cryptographic monitors are now ${newVal ? 'visible' : 'hidden'}.`);
+      setDevClickCount(0);
+      if (!newVal && activeTab === 'security') {
+        setActiveTab('learn');
+      }
+      setTimeout(() => setDevToast(''), 4500);
+    }
+  };
+
   // Lesson Player state
   const [activeLesson, setActiveLesson] = useState<{
     track: 'personalFinance' | 'accounting' | 'statistics' | 'appliedMath';
@@ -358,17 +384,19 @@ export default function App() {
             >
               Premium Store
             </button>
-            <button
-              onClick={() => setActiveTab('security')}
-              className={`px-4 py-2 rounded-xl transition flex items-center gap-1 ${
-                activeTab === 'security' 
-                  ? "bg-slate-100 text-indigo-700 font-black" 
-                  : "text-slate-500 hover:bg-slate-50"
-              }`}
-            >
-              <Shield className="w-3.5 h-3.5" />
-              Cryptography
-            </button>
+            {showDev && (
+              <button
+                onClick={() => setActiveTab('security')}
+                className={`px-4 py-2 rounded-xl transition flex items-center gap-1 ${
+                  activeTab === 'security' 
+                    ? "bg-slate-100 text-indigo-700 font-black" 
+                    : "text-slate-500 hover:bg-slate-50"
+                }`}
+              >
+                <Shield className="w-3.5 h-3.5" />
+                Cryptography
+              </button>
+            )}
           </nav>
 
           {/* User Score Stats Indicators Block */}
@@ -443,13 +471,15 @@ export default function App() {
             >
               Premium Store
             </button>
-            <button
-              onClick={() => { setActiveTab('security'); setMenuOpen(false); }}
-              className="w-full text-left px-4 py-2 text-slate-700 hover:bg-slate-50 block flex items-center gap-1"
-            >
-              <Shield className="w-3.5 h-3.5 text-indigo-700" />
-              Cryptography
-            </button>
+            {showDev && (
+              <button
+                onClick={() => { setActiveTab('security'); setMenuOpen(false); }}
+                className="w-full text-left px-4 py-2 text-slate-700 hover:bg-slate-50 block flex items-center gap-1"
+              >
+                <Shield className="w-3.5 h-3.5 text-indigo-700" />
+                Cryptography
+              </button>
+            )}
           </div>
         )}
       </header>
@@ -491,12 +521,23 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
           <span>MIT OpenCourseWare courseware syllabus mapping © 2026. All rights and metrics verified.</span>
           <div className="flex items-center gap-4">
-            <span className="text-[10px] font-bold text-emerald-600 block bg-emerald-50 px-2 py-0.5 rounded tracking-wide font-mono uppercase">
+            <span 
+              onClick={handleDevToggle}
+              className="text-[10px] font-bold text-emerald-600 block bg-emerald-50 px-2 py-0.5 rounded tracking-wide font-mono uppercase cursor-pointer select-none active:scale-95 transition"
+              title="Click 5 times to toggle Developer Inspector Mode"
+            >
               Encrypted transmission pipeline active
             </span>
           </div>
         </div>
       </footer>
+
+      {/* Floating Developer Mode Notification Toast */}
+      {devToast && (
+        <div className="fixed bottom-6 left-6 right-6 md:left-auto md:right-6 md:w-96 bg-slate-900 border border-teal-500 text-teal-400 p-4 rounded-xl shadow-2xl font-mono text-center text-xs z-[9999] animate-bounce">
+          💡 {devToast}
+        </div>
+      )}
 
       {/* Interactive FAQ and Offline Support Bot Widget */}
       <ChatbotWidget user={user} />
