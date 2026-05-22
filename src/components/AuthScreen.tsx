@@ -108,9 +108,19 @@ export default function AuthScreen({ onSuccess }: AuthScreenProps) {
         body: JSON.stringify(payloadBody)
       });
 
-      const data = await response.json();
+      let data: any = null;
+      const text = await response.text();
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (e) {
+        if (!response.ok) {
+          throw new Error(text || `Internal server error (${response.status})`);
+        }
+        throw new Error("Unable to parse server-side handshake response.");
+      }
+
       if (!response.ok) {
-        throw new Error(data.error || "Authentication transfer error.");
+        throw new Error(data?.error || "Authentication transfer error.");
       }
 
       onSuccess(data.token, data.user);

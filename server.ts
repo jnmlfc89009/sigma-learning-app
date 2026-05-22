@@ -18,7 +18,37 @@ dotenv.config();
 
 const app = express();
 const PORT = 3000;
-const DB_PATH = path.join(process.cwd(), 'data', 'db.json');
+
+// Find the readable seed database path across multiple environments
+let readDbPath = '';
+const pathsToTry = [
+  path.join(process.cwd(), 'data', 'db.json'),
+  path.join(__dirname, 'data', 'db.json'),
+  path.join(__dirname, '..', 'data', 'db.json'),
+  path.join('/var/task', 'data', 'db.json')
+];
+
+for (const p of pathsToTry) {
+  if (fs.existsSync(p)) {
+    readDbPath = p;
+    break;
+  }
+}
+
+// Writeable database path - use /tmp on Vercel to allow real writes, else follow read path
+const isVercel = !!process.env.VERCEL || !readDbPath;
+const DB_PATH = isVercel ? '/tmp/db.json' : (readDbPath || pathsToTry[0]);
+
+if (isVercel && readDbPath && !fs.existsSync(DB_PATH)) {
+  try {
+    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+    fs.copyFileSync(readDbPath, DB_PATH);
+    console.log(`Seeded /tmp/db.json successfully from ${readDbPath}`);
+  } catch (e: any) {
+    console.warn("Failed to seed database in /tmp, falling back to in-memory store.", e?.message || e);
+  }
+}
+
 const SECRET_KEY = process.env.JWT_SECRET || 'SIGMA_LEARNING_SUPER_SECRET_KEY_FOR_JWT_AND_AES';
 
 // Initialize Supabase if variables exist
@@ -29,7 +59,7 @@ const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabase
 if (supabase) {
   console.log("Supabase Integration Status: TRUE (Connected to cloud database)");
 } else {
-  console.log("Supabase Integration Status: FALSE (Falling back to local data/db.json)");
+  console.log(`Supabase Integration Status: FALSE (Falling back to local ${DB_PATH})`);
 }
 
 // Convert model schema to postgres syntax and camelCase back types
@@ -166,112 +196,130 @@ function logSecurityAction(db: DatabaseSchema, action: string, details: string, 
 // ==========================================
 async function dbGetUser(uid: string): Promise<any | null> {
   if (supabase) {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('uid', uid)
-      .maybeSingle();
-    if (error) {
-      console.error("Supabase user get failure:", error.message);
-      return null;
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('uid', uid)
+        .maybeSingle();
+      if (!error) {
+        return fromDbUser(data);
+      }
+      console.warn("Supabase user fetch failed (relation does not exist? or RLS). Falling back to local/memory store.", error.message);
+    } catch (err: any) {
+      console.warn("Supabase user fetch exception, falling back to local/memory store.", err?.message || err);
     }
-    return fromDbUser(data);
-  } else {
-    const localDb = loadDatabase();
-    return localDb.users[uid] || null;
   }
+  
+  const localDb = loadDatabase();
+  return localDb.users[uid] || null;
 }
 
 async function dbGetUserByEmail(email: string): Promise<any | null> {
   const emailLower = email.toLowerCase().trim();
   if (supabase) {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', emailLower)
-      .maybeSingle();
-    if (error) {
-      console.error("Supabase user email lookup failure:", error.message);
-      return null;
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', emailLower)
+        .maybeSingle();
+      if (!error) {
+        return fromDbUser(data);
+      }
+      console.warn("Supabase email query failed (relation does not exist? or RLS). Falling back to local/memory store.", error.message);
+    } catch (err: any) {
+      console.warn("Supabase email query exception, falling back to local/memory store.", err?.message || err);
     }
-    return fromDbUser(data);
-  } else {
-    const localDb = loadDatabase();
-    return Object.values(localDb.users).find(u => u.email.toLowerCase() === emailLower) || null;
   }
+  
+  const localDb = loadDatabase();
+  return Object.values(localDb.users).find(u => u.email.toLowerCase() === emailLower) || null;
 }
 
 async function dbSaveUser(uid: string, userRecord: any): Promise<void> {
   if (supabase) {
-    const dbRow = toDbUser(userRecord);
-    const { error } = await supabase
-      .from('users')
-      .upsert(dbRow);
-    if (error) {
-      console.error("Supabase user upsert failure:", error.message);
-      throw new Error(`Cloud DB save failed: ${error.message}`);
+    try {
+      const dbRow = toDbUser(userRecord);
+      const { error } = await supabase
+        .from('users')
+        .upsert(dbRow);
+      if (!error) {
+        return;
+      }
+      console.warn("Supabase upsert user failed (relation does not exist? or RLS). Falling back to local/memory store.", error.message);
+    } catch (err: any) {
+      console.warn("Supabase upsert exception, falling back to local/memory store.", err?.message || err);
     }
-  } else {
-    const localDb = loadDatabase();
-    localDb.users[uid] = userRecord;
-    saveDatabase(localDb);
   }
+  
+  const localDb = loadDatabase();
+  localDb.users[uid] = userRecord;
+  saveDatabase(localDb);
 }
 
 async function dbLogSecurityAction(action: string, details: string, payloadPreview?: string, success = true): Promise<void> {
   const timestamp = new Date().toISOString();
   if (supabase) {
-    const { error } = await supabase
-      .from('security_logs')
-      .insert({
-        timestamp,
-        action,
-        details,
-        encrypted_payload_preview: payloadPreview || null,
-        decrypted_verification: success
-      });
-    if (error) {
-      console.error("Supabase security audit log insert failure:", error.message);
+    try {
+      const { error } = await supabase
+        .from('security_logs')
+        .insert({
+          timestamp,
+          action,
+          details,
+          encrypted_payload_preview: payloadPreview || null,
+          decrypted_verification: success
+        });
+      if (!error) {
+        return;
+      }
+      console.warn("Supabase log security failed (relation does not exist? or RLS). Falling back to local/memory store.", error.message);
+    } catch (err: any) {
+      console.warn("Supabase log exception, falling back to local/memory store.", err?.message || err);
     }
-  } else {
-    const localDb = loadDatabase();
-    const audit: SecurityAuditLog = {
-      timestamp,
-      action,
-      details,
-      encryptedPayloadPreview: payloadPreview,
-      decryptedVerification: success
-    };
-    localDb.securityLogs.unshift(audit);
-    if (localDb.securityLogs.length > 100) {
-      localDb.securityLogs.pop();
-    }
-    saveDatabase(localDb);
   }
+  
+  const localDb = loadDatabase();
+  const audit: SecurityAuditLog = {
+    timestamp,
+    action,
+    details,
+    encryptedPayloadPreview: payloadPreview,
+    decryptedVerification: success
+  };
+  localDb.securityLogs.unshift(audit);
+  if (localDb.securityLogs.length > 100) {
+    localDb.securityLogs.pop();
+  }
+  saveDatabase(localDb);
 }
 
 async function dbGetSecurityLogs(): Promise<any[]> {
   if (supabase) {
-    const { data, error } = await supabase
-      .from('security_logs')
-      .select('*')
-      .order('timestamp', { ascending: false })
-      .limit(100);
-    if (error) {
-      console.error("Supabase security audit logs fetch failure:", error.message);
-      return [];
+    try {
+      const { data, error } = await supabase
+        .from('security_logs')
+        .select('*')
+        .order('timestamp', { ascending: false })
+        .limit(100);
+      if (!error) {
+        return data.map(row => ({
+          timestamp: row.timestamp,
+          action: row.action,
+          details: row.details,
+          encryptedPayloadPreview: row.encrypted_payload_preview,
+          decryptedVerification: row.decrypted_verification
+        }));
+      }
+      console.warn("Supabase logs fetch failed (relation does not exist? or RLS). Falling back to local/memory store.", error.message);
+    } catch (err: any) {
+      console.warn("Supabase logs fetch exception, falling back to local/memory store.", err?.message || err);
     }
-    return data.map(row => ({
-      timestamp: row.timestamp,
-      action: row.action,
-      details: row.details,
-      encryptedPayloadPreview: row.encrypted_payload_preview,
-      decryptedVerification: row.decrypted_verification
-    }));
-  } else {
-    const localDb = loadDatabase();
-    return localDb.securityLogs;
   }
+  
+  const localDb = loadDatabase();
+  return localDb.securityLogs;
 }
 
 
