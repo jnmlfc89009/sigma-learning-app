@@ -45,6 +45,19 @@ CREATE TABLE IF NOT EXISTS public.security_logs (
 -- Index on security log timestamps for rapid audit analysis
 CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON public.security_logs(timestamp DESC);
 
+-- 3. Create the Entries Table (Accounting Ledger Entries for Simulator)
+CREATE TABLE IF NOT EXISTS public.entries (
+    id BIGSERIAL PRIMARY KEY,
+    description TEXT NOT NULL,
+    type VARCHAR(10) NOT NULL CHECK (type IN ('debit', 'credit')),
+    account VARCHAR(20) NOT NULL CHECK (account IN ('cash', 'equipment', 'loans', 'equity')),
+    amount NUMERIC NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Index on created_at for fast time-series ordering
+CREATE INDEX IF NOT EXISTS idx_entries_created_at ON public.entries(created_at ASC);
+
 -- =====================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- =====================================================================
@@ -55,10 +68,14 @@ CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON public.security_logs(timestamp 
 
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.security_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.entries ENABLE ROW LEVEL SECURITY;
 
 -- Allow read/write access strictly to the service_role bypass or define specific policies
 CREATE POLICY "Bypass RLS for Server Admin" ON public.users 
     FOR ALL USING (true) WITH CHECK (true);
 
 CREATE POLICY "Bypass RLS for Logs Admin" ON public.security_logs 
+    FOR ALL USING (true) WITH CHECK (true);
+
+CREATE POLICY "Bypass RLS for Entries Admin" ON public.entries 
     FOR ALL USING (true) WITH CHECK (true);

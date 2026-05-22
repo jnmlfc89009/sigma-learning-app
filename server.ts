@@ -9,7 +9,6 @@ import fs from 'fs';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
-import { createServer as createViteServer } from 'vite';
 import { getCompleteTracks } from './src/data/seedQuestions';
 import { UserProfile, SecurityAuditLog } from './src/types';
 import { fileURLToPath } from 'url';
@@ -20,8 +19,17 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+let __filename = '';
+let __dirname = '';
+
+try {
+  __filename = fileURLToPath(import.meta.url);
+  __dirname = path.dirname(__filename);
+} catch (e) {
+  // Safe fallback if compiled or run in CommonJS / Vercel serverless environments
+  __filename = '';
+  __dirname = process.cwd();
+}
 
 // Find the readable seed database path across multiple environments
 let readDbPath = '';
@@ -55,13 +63,34 @@ if (isVercel && readDbPath && !fs.existsSync(DB_PATH)) {
 
 const SECRET_KEY = process.env.JWT_SECRET || 'SIGMA_LEARNING_SUPER_SECRET_KEY_FOR_JWT_AND_AES';
 
-// Initialize Supabase if variables exist
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''; // Client proxy bypasses RLS with service_role secret securely on server side
-const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+// Initialize Supabase if variables exist with extreme resilience against Vercel format/quote errors
+let supabaseUrl = (process.env.SUPABASE_URL || '').trim();
+let supabaseKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || '').trim();
 
-if (supabase) {
-  console.log("Supabase Integration Status: TRUE (Connected to cloud database)");
+// Strip any surrounding double or single quotes that may have been pasted into Vercel Dashboard
+if (supabaseUrl.startsWith('"') && supabaseUrl.endsWith('"')) supabaseUrl = supabaseUrl.slice(1, -1).trim();
+if (supabaseUrl.startsWith("'") && supabaseUrl.endsWith("'")) supabaseUrl = supabaseUrl.slice(1, -1).trim();
+if (supabaseKey.startsWith('"') && supabaseKey.endsWith('"')) supabaseKey = supabaseKey.slice(1, -1).trim();
+if (supabaseKey.startsWith("'") && supabaseKey.endsWith("'")) supabaseKey = supabaseKey.slice(1, -1).trim();
+
+// Ensure the protocol prefix is correct
+if (supabaseUrl && !supabaseUrl.startsWith('http://') && !supabaseUrl.startsWith('https://')) {
+  supabaseUrl = `https://${supabaseUrl}`;
+}
+
+let supabase = null;
+if (supabaseUrl && supabaseKey) {
+  try {
+    supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        persistSession: false
+      }
+    });
+    console.log("Supabase Integration Status: TRUE (Connected to cloud database)");
+  } catch (err: any) {
+    console.error("CRITICAL error initializing Supabase client in Vercel environment:", err?.message || err);
+    supabase = null;
+  }
 } else {
   console.log(`Supabase Integration Status: FALSE (Falling back to local ${DB_PATH})`);
 }
@@ -867,6 +896,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 // ==========================================
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
