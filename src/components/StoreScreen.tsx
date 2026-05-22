@@ -604,11 +604,18 @@ export default function StoreScreen({ user, onUpgrade, onBuyItem, onPurchaseGems
 
       {/* INTERACTIVE CERTIFICATE MODAL */}
       {showCertificateModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col relative animate-pop text-left">
+        <div 
+          onClick={() => setShowCertificateModal(false)}
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex justify-center items-start overflow-y-auto z-[100] p-4 md:p-6 animate-fade-in"
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white border border-slate-200 rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col relative animate-pop text-left my-auto"
+          >
             <button
               onClick={() => setShowCertificateModal(false)}
-              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition cursor-pointer"
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition cursor-pointer z-10"
+              title="Close Certificate"
             >
               <X className="w-5 h-5" />
             </button>
@@ -620,7 +627,7 @@ export default function StoreScreen({ user, onUpgrade, onBuyItem, onPurchaseGems
               </div>
 
               <div className="space-y-2">
-                <span className="text-xl font-serif font-black text-[#8c783c] tracking-widest uppercase block">
+                <span className="text-xl font-serif font-black text-[#8c783c] tracking-widest uppercase block font-medium">
                   SIGMA ACADEMIC BOARD
                 </span>
                 <span className="text-[9px] font-mono font-bold text-slate-500 uppercase tracking-widest block">
@@ -634,8 +641,8 @@ export default function StoreScreen({ user, onUpgrade, onBuyItem, onPurchaseGems
                 </h4>
               </div>
 
-              <div className="space-y-4 max-w-md mx-auto">
-                <p className="text-xs text-stone-600 font-sans tracking-wide">
+              <div className="space-y-4 max-w-md mx-auto font-sans">
+                <p className="text-xs text-stone-600 tracking-wide">
                   This official document serves to verify the satisfactory fulfillment of rigorous, graduate-level coursework models in quantitative analyses. Scribed and credentialed unto:
                 </p>
 
@@ -643,12 +650,12 @@ export default function StoreScreen({ user, onUpgrade, onBuyItem, onPurchaseGems
                   <h3 className="font-serif font-black text-2xl md:text-3xl text-[#1a2530] border-b-2 border-stone-800 w-fit mx-auto px-6 uppercase tracking-wider">
                     {user.username}
                   </h3>
-                  <span className="text-[10px] text-stone-500 font-sans mt-1 block font-bold">
+                  <span className="text-[10px] text-stone-500 mt-1 block font-bold">
                     Registered Learner: {user.email}
                   </span>
                 </div>
 
-                <p className="text-[11px] text-stone-600 leading-relaxed font-sans">
+                <p className="text-[11px] text-stone-600 leading-relaxed">
                   The aforementioned scholar has compiled perfect star evaluations, maintained daily streak habits, and unlocked math modeling tracks covering asset valuations, double-entry financial accounting, and compounding interest models.
                 </p>
               </div>
@@ -691,7 +698,13 @@ export default function StoreScreen({ user, onUpgrade, onBuyItem, onPurchaseGems
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowCertificateModal(false)}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold uppercase tracking-wider rounded-xl transition cursor-pointer"
+              >
+                Go Back
+              </button>
               <button
                 onClick={() => {
                   window.print();

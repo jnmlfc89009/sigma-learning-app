@@ -845,6 +845,14 @@ app.get('/api/security/logs', async (req, res) => {
   res.json(logs);
 });
 
+// 8. Expose Supabase database parameters to client securely
+app.get('/api/supabase-config', (req, res) => {
+  res.json({
+    supabaseUrl: process.env.SUPABASE_URL || '',
+    supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  });
+});
+
 // Global Error Handler Middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error("Unhandled Server Exception Captured:", err);

@@ -3,9 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BarChart, Percent, Plus, Trash2, ArrowRightLeft, Database, Sparkles, TrendingUp, Cpu, Lock, Award } from 'lucide-react';
 import { UserProfile } from '../types';
+import { getSupabaseClient } from '../lib/supabaseClient';
 
 interface InsightsDashboardProps {
   user: UserProfile;
@@ -22,6 +23,7 @@ export default function InsightsDashboard({ user, onNavigateToStore }: InsightsD
     type: 'debit' | 'credit';
     account: 'cash' | 'equipment' | 'loans' | 'equity';
     amount: number;
+    created_at?: string;
   }>>([
     { id: '1', description: 'Starting Capital Deposit', type: 'debit', account: 'cash', amount: 10000 },
     { id: '2', description: 'Purchase study devices', type: 'debit', account: 'equipment', amount: 3000 },
@@ -32,6 +34,130 @@ export default function InsightsDashboard({ user, onNavigateToStore }: InsightsD
   const [leAccount, setLeAccount] = useState<'cash' | 'equipment' | 'loans' | 'equity'>('cash');
   const [leType, setLeType] = useState<'debit' | 'credit'>('debit');
   const [leAmount, setLeAmount] = useState('1500');
+
+  // Supabase client instance state
+  const [supabaseClient, setSupabaseClient] = useState<any>(null);
+  const [dbSyncStatus, setDbSyncStatus] = useState<'connecting' | 'synced' | 'fallback'>('connecting');
+
+  useEffect(() => {
+    let activeChannel: any = null;
+
+    const initSupabase = async () => {
+      const client = await getSupabaseClient();
+      if (!client) {
+        console.warn("Supabase client not initialized. Falling back to local in-memory store.");
+        setDbSyncStatus('fallback');
+        return;
+      }
+
+      setSupabaseClient(client);
+
+      try {
+        // Fetch current entries
+        const { data, error } = await client
+          .from('entries')
+          .select('*')
+          .order('created_at', { ascending: true });
+
+        if (error) {
+          console.warn("Supabase fetch failed (table/columns may not exist yet). Gracefully falling back:", error.message);
+          setDbSyncStatus('fallback');
+        } else {
+          setDbSyncStatus('synced');
+          if (data && data.length > 0) {
+            setLedgerEntries(data.map((r: any) => ({
+              id: String(r.id),
+              description: r.description || '',
+              type: r.type || 'debit',
+              account: r.account || 'cash',
+              amount: Number(r.amount || 0),
+              created_at: r.created_at
+            })));
+          } else {
+            // Database is empty, pre-populate table with initial demo seed entries
+            const initialDemo = [
+              { description: 'Starting Capital Deposit', type: 'debit', account: 'cash', amount: 10000 },
+              { description: 'Purchase study devices', type: 'debit', account: 'equipment', amount: 3000 },
+              { description: 'SBA loan received', type: 'credit', account: 'loans', amount: 5000 },
+              { description: 'Partner contribution', type: 'credit', account: 'equity', amount: 12000 }
+            ];
+            const { error: seedError, data: seededData } = await client
+              .from('entries')
+              .insert(initialDemo)
+              .select();
+
+            if (seedError) {
+              console.warn("Failed to seed initial entries, falling back to local memory seed list:", seedError.message);
+            } else if (seededData && seededData.length > 0) {
+              setLedgerEntries(seededData.map((r: any) => ({
+                id: String(r.id),
+                description: r.description,
+                type: r.type,
+                account: r.account,
+                amount: Number(r.amount),
+                created_at: r.created_at
+              })));
+            }
+          }
+        }
+
+        // Subscribe to live Realtime database transactions
+        activeChannel = client
+          .channel('public:entries')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'entries' },
+            (payload: any) => {
+              console.log("Real-time DB Broadcast Received:", payload);
+              if (payload.eventType === 'INSERT') {
+                const r = payload.new;
+                const newEntry = {
+                  id: String(r.id),
+                  description: r.description || '',
+                  type: r.type || 'debit',
+                  account: r.account || 'cash',
+                  amount: Number(r.amount || 0),
+                  created_at: r.created_at
+                };
+                setLedgerEntries((prev) => {
+                  if (prev.some((e) => e.id === newEntry.id)) return prev;
+                  return [...prev, newEntry];
+                });
+              } else if (payload.eventType === 'DELETE') {
+                const oldId = payload.old?.id;
+                if (oldId) {
+                  setLedgerEntries((prev) => prev.filter((e) => e.id !== String(oldId)));
+                }
+              } else if (payload.eventType === 'UPDATE') {
+                const r = payload.new;
+                const updatedEntry = {
+                  id: String(r.id),
+                  description: r.description || '',
+                  type: r.type || 'debit',
+                  account: r.account || 'cash',
+                  amount: Number(r.amount || 0),
+                  created_at: r.created_at
+                };
+                setLedgerEntries((prev) => prev.map((e) => e.id === updatedEntry.id ? updatedEntry : e));
+              }
+            }
+          )
+          .subscribe();
+
+      } catch (err: any) {
+        console.error("Exception synchronizing with Supabase database:", err);
+        setDbSyncStatus('fallback');
+      }
+    };
+
+    initSupabase();
+
+    return () => {
+      if (activeChannel && supabaseClient) {
+        supabaseClient.removeChannel(activeChannel);
+      }
+    };
+  }, [supabaseClient]);
 
   // --- 2. State for Compound Interest Simulator ---
   const [rawPrincipal, setRawPrincipal] = useState(5000);
@@ -48,29 +174,99 @@ export default function InsightsDashboard({ user, onNavigateToStore }: InsightsD
   const [stdDev, setStdDev] = useState(15);
 
   // --- Accounting Ledger functions ---
-  const handleAddLedger = (e: React.FormEvent) => {
+  const handleAddLedger = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isScholar) return; // Guard
     const amt = parseFloat(leAmount);
     if (!leDesc || isNaN(amt) || amt <= 0) return;
 
-    setLedgerEntries([
-      ...ledgerEntries,
-      {
-        id: Math.random().toString(),
-        description: leDesc,
-        type: leType,
-        account: leAccount,
-        amount: amt
+    const payloadObj = {
+      description: leDesc,
+      type: leType,
+      account: leAccount,
+      amount: amt
+    };
+
+    let savedLocally = false;
+
+    if (supabaseClient && dbSyncStatus === 'synced') {
+      try {
+        const { data, error } = await supabaseClient
+          .from('entries')
+          .insert([payloadObj])
+          .select();
+
+        if (error) {
+          console.warn("Supabase ledger insert failed. Fallback to local state persistence.", error.message);
+          savedLocally = true;
+        } else if (data && data.length > 0) {
+          const returned = data[0];
+          const newEntry = {
+            id: String(returned.id),
+            description: returned.description,
+            type: returned.type,
+            account: returned.account,
+            amount: Number(returned.amount),
+            created_at: returned.created_at
+          };
+          setLedgerEntries((prev) => {
+            if (prev.some((e) => e.id === newEntry.id)) return prev;
+            return [...prev, newEntry];
+          });
+        } else {
+          savedLocally = true;
+        }
+      } catch (ex) {
+        console.warn("Exception during Supabase insert. Applying local-only state:", ex);
+        savedLocally = true;
       }
-    ]);
+    } else {
+      savedLocally = true;
+    }
+
+    if (savedLocally) {
+      setLedgerEntries([
+        ...ledgerEntries,
+        {
+          id: Math.random().toString(),
+          ...payloadObj
+        }
+      ]);
+    }
+
     setLeDesc('');
     setLeAmount('');
   };
 
-  const handleDeleteLedger = (id: string) => {
+  const handleDeleteLedger = async (id: string) => {
     if (isScholar) return; // Guard
-    setLedgerEntries(ledgerEntries.filter(e => e.id !== id));
+
+    let deletedLocally = false;
+
+    if (supabaseClient && dbSyncStatus === 'synced' && !id.startsWith('0.')) {
+      try {
+        const { error } = await supabaseClient
+          .from('entries')
+          .delete()
+          .eq('id', id);
+
+        if (error) {
+          console.warn("Supabase record deletion failed. Removing locally:", error.message);
+          deletedLocally = true;
+        } else {
+          setLedgerEntries((prev) => prev.filter((e) => e.id !== id));
+        }
+      } catch (ex) {
+        console.warn("Exception during database query deletion. Removing locally:", ex);
+        deletedLocally = true;
+      }
+    } else {
+      deletedLocally = true;
+    }
+
+    if (deletedLocally) {
+      setLedgerEntries(ledgerEntries.filter(e => e.id !== id));
+    }
   };
 
   // Compute balance indicators
