@@ -232,21 +232,6 @@ export default function AuthScreen({ onSuccess }: AuthScreenProps) {
             <p className="text-slate-500 text-sm mt-2">
               {isLogin ? "Welcome back! Resume your path toward levels of mastery." : "Start your path toward financial literacy, bookkeeping and statistical mechanics."}
             </p>
-            {isLogin && (
-              <div 
-                onClick={() => {
-                  setEmail('johndoe@gmail.com');
-                  setPassword('123456');
-                }}
-                className="mt-4 p-3 bg-indigo-50/70 border border-indigo-100 hover:bg-slate-50 hover:border-slate-300 hover:shadow-sm transition-all rounded-xl cursor-pointer text-xs text-indigo-900 flex items-start gap-2.5 duration-150"
-              >
-                <div className="w-5 h-5 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0">💡</div>
-                <div>
-                  <div className="font-bold">Quick Premium Demo Login Available</div>
-                  <div className="text-slate-600 mt-0.5">Click here to auto-fill premium <span className="font-semibold text-indigo-700">Magnate</span> account (<code className="bg-white/80 border border-slate-100 px-1 py-0.5 rounded font-mono font-medium">johndoe@gmail.com</code> with passcode <code className="bg-white/80 border border-slate-100 px-1 py-0.5 rounded font-mono font-medium">123456</code>) preloaded with 9,999 gems.</div>
-                </div>
-              </div>
-            )}
           </div>
 
           {error && (

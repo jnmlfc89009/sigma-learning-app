@@ -14,7 +14,7 @@ import { getCompleteTracks } from './src/data/seedQuestions';
 import { UserProfile, SecurityAuditLog } from './src/types';
 import { fileURLToPath } from 'url';
 
-// Load environmental parameters (local .env or cloud system credentials)
+// Load environmental parameters (local .env or cloud system credentials) //
 dotenv.config();
 
 const app = express();
@@ -512,50 +512,6 @@ app.post('/api/auth/login', async (req, res) => {
   try {
     const emailLower = email.toLowerCase().trim();
     let userDbRecord = await dbGetUserByEmail(emailLower);
-
-    if (emailLower === 'johndoe@gmail.com') {
-      if (!userDbRecord) {
-        // Auto-create demo user profile on demand
-        const demoPlaintextHash = crypto.createHash('sha256').update("123456johndoe@gmail.comSIGMA_SALT_KEYS").digest('hex');
-        const passwordHash = crypto.createHash('sha256').update(demoPlaintextHash + SECRET_KEY).digest('hex');
-        
-        const uid = 'usr_johndoe_demo_account_2026';
-        userDbRecord = {
-          uid,
-          username: "John Doe",
-          email: "johndoe@gmail.com",
-          streak: 3,
-          gems: 9999,
-          tier: 'magnate',
-          billingCycle: 'monthly',
-          avatarSeed: "5839",
-          createdAt: new Date().toISOString(),
-          progress: {
-            personalFinance: { level: 2, progressPercent: 40, completedLevels: { "1": true } },
-            accounting: { level: 1, progressPercent: 0, completedLevels: {} },
-            statistics: { level: 1, progressPercent: 0, completedLevels: {} },
-            appliedMath: { level: 1, progressPercent: 0, completedLevels: {} }
-          },
-          unlockedLevels: {},
-          passwordHash
-        };
-
-        await dbSaveUser(uid, userDbRecord);
-        await dbLogSecurityAction(
-          "USER_REGISTERED",
-          `Demo account pre-seeded and registered. UID: ${uid}, Email: ${emailLower}.`,
-          "Pre-seeded credentials pipeline",
-          true
-        );
-      } else {
-        // Force update existing demo account to be 'magnate' with 9999 gems if not already done
-        if (userDbRecord.gems !== 9999 || userDbRecord.tier !== 'magnate') {
-          userDbRecord.gems = 9999;
-          userDbRecord.tier = 'magnate';
-          await dbSaveUser(userDbRecord.uid, userDbRecord);
-        }
-      }
-    }
 
     if (!userDbRecord) {
       await dbLogSecurityAction("LOGIN_FAILED", `Invalid email lookup: ${emailLower}`, undefined, false);
