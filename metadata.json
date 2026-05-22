@@ -1,0 +1,6 @@
+{
+  "name": "Sigma Learning",
+  "description": "A Duolingo-style gamified learning platform for Personal Financial Literacy, Accounting, and Statistics, featuring real MIT OCW-inspired academic question banks, secure cryptographic accounts, and robust progress tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
