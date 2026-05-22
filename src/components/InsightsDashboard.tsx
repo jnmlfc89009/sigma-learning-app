@@ -101,9 +101,10 @@ export default function InsightsDashboard({ user, onNavigateToStore }: InsightsD
           }
         }
 
-        // Subscribe to live Realtime database transactions
+        // Subscribe to live Realtime database transactions with dynamic channel identification to bypass client-side channel caching collisions
+        const randomSubId = Math.random().toString(36).substring(2, 11);
         activeChannel = client
-          .channel('public:entries')
+          .channel(`public_entries_sub_${randomSubId}`)
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'entries' },

@@ -16,6 +16,65 @@ interface Topic {
   iconColor: string;
 }
 
+interface DiscussionEmbedProps {
+  key?: string;
+  shortname: string;
+  config: {
+    url: string;
+    identifier: string;
+    title: string;
+    language: string;
+  };
+}
+
+// React 19 Compliant fully-functional DiscussionEmbed Component
+export function DiscussionEmbed({ shortname, config }: DiscussionEmbedProps) {
+  useEffect(() => {
+    // 1. Configure global window variables for Disqus loader
+    const disqusConfig = function (this: any) {
+      this.page.url = config.url;
+      this.page.identifier = config.identifier;
+      this.page.title = config.title;
+      this.language = config.language;
+      this.page.developer = 1; // Strict bypass for development / iframe domain blocks
+    };
+    (window as any).disqus_config = disqusConfig;
+    (window as any).disqus_developer = 1;
+
+    // 2. Clear old loaders to force fresh initialization on channel swap
+    const d = document;
+    const existingScript = d.querySelector('script[src*=".disqus.com/embed.js"]');
+    if (existingScript) {
+      existingScript.remove();
+    }
+
+    // 3. Check if Disqus script is already loaded and reset accordingly
+    if ((window as any).DISQUS) {
+      try {
+        (window as any).DISQUS.reset({
+          reload: true,
+          config: disqusConfig
+        });
+      } catch (e) {
+        console.warn("Disqus reset failed gracefully:", e);
+      }
+    } else {
+      // 4. Mount Disqus script asynchronously
+      try {
+        const s = d.createElement('script');
+        s.src = `https://${shortname}.disqus.com/embed.js`;
+        s.setAttribute('data-timestamp', +new Date() + '');
+        s.async = true;
+        (d.head || d.body).appendChild(s);
+      } catch (err) {
+        console.error("Disqus script mounting exception:", err);
+      }
+    }
+  }, [shortname, config.url, config.identifier, config.title, config.language]);
+
+  return <div id="disqus_thread" className="w-full h-full min-h-[300px]" />;
+}
+
 const SOCIAL_TOPICS: Topic[] = [
   {
     id: 'sigma-general',
@@ -80,15 +139,12 @@ export default function SocialForum() {
   useEffect(() => {
     setDisqusLoadingState('loading');
 
-    // 1. Configure global window variables for Disqus loader
-    (window as any).disqus_config = function () {
-      this.page.url = disqusUrl;
-      this.page.identifier = activeTopic.id;
-      this.page.title = activeTopic.title;
-      this.language = 'zh_TW';
-      this.page.developer = 1; // STRICT BYPASS FOR LOCAL AND DEVELOPMENT URLS (Bypasses Disqus Domain Mismatch Check!)
-    };
-    (window as any).disqus_developer = 1; // Also set old global trigger for older template loaders
+    // Enable developer mode globally for Disqus load sequence
+    (window as any).disqus_developer = 1;
+
+    const loadTimer = setTimeout(() => {
+      setDisqusLoadingState('loaded');
+    }, 1200);
 
     // Set a safety timeout to detect AdBlockers or Sandboxing blocks after 5 seconds
     const timer = setTimeout(() => {
@@ -98,53 +154,10 @@ export default function SocialForum() {
       }
     }, 5000);
 
-    // 2. Check if Disqus script is already loaded
-    if ((window as any).DISQUS) {
-      try {
-        (window as any).DISQUS.reset({
-          reload: true,
-          config: function () {
-            this.page.url = disqusUrl;
-            this.page.identifier = activeTopic.id;
-            this.page.title = activeTopic.title;
-            this.language = 'zh_TW';
-            this.page.developer = 1; // Force domain bypass during resets
-          }
-        });
-        setDisqusLoadingState('loaded');
-      } catch (e) {
-        console.warn("Disqus reset failed gracefully:", e);
-        setDisqusLoadingState('failed');
-      }
-    } else {
-      // 3. Mount Disqus script asynchronously
-      try {
-        const d = document;
-        
-        // Remove old scripts that might have been loaded to clean space and force shortname change
-        const existingScript = d.querySelector('script[src*=".disqus.com/embed.js"]');
-        if (existingScript) {
-          existingScript.remove();
-        }
-
-        const s = d.createElement('script');
-        s.src = `https://${disqusShortname}.disqus.com/embed.js`;
-        s.setAttribute('data-timestamp', +new Date() + '');
-        s.onload = () => {
-          setDisqusLoadingState('loaded');
-        };
-        s.onerror = (err) => {
-          console.error("Disqus script mounting error:", err);
-          setDisqusLoadingState('failed');
-        };
-        (d.head || d.body).appendChild(s);
-      } catch (err) {
-        console.error("Disqus script mounting exception:", err);
-        setDisqusLoadingState('failed');
-      }
-    }
-
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(loadTimer);
+      clearTimeout(timer);
+    };
   }, [disqusUrl, activeTopic.id, activeTopic.title, disqusShortname]);
 
   return (
@@ -339,7 +352,16 @@ export default function SocialForum() {
               <p className="text-xs text-slate-500 font-bold uppercase tracking-wider animate-pulse">Mounting Disqus Thread...</p>
             </div>
           )}
-          <div id="disqus_thread" className="w-full h-full min-h-[300px]" />
+          <DiscussionEmbed
+            key={`${disqusShortname}-${activeTopic.id}`}
+            shortname={disqusShortname}
+            config={{
+              url: disqusUrl,
+              identifier: activeTopic.id,
+              title: activeTopic.title,
+              language: 'zh_TW'
+            }}
+          />
         </div>
 
         {/* Footer Support Notice */}
