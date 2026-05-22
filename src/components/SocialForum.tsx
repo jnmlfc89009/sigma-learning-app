@@ -61,7 +61,7 @@ export default function SocialForum() {
     url: disqusUrl,
     identifier: activeTopic.id,
     title: activeTopic.title,
-    language: 'en_SG' // Default language requested by user
+    language: 'zh_TW' // Default language requested by user
   };
 
   return (
