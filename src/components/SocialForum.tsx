@@ -31,84 +31,6 @@ interface ForumComment {
   replies?: ForumComment[];
 }
 
-interface DiscussionEmbedProps {
-  key?: string;
-  shortname: string;
-  config: {
-    url: string;
-    identifier: string;
-    title: string;
-    language: string;
-  };
-  onLoadSuccess?: () => void;
-  onLoadError?: () => void;
-}
-
-// React 19 Compliant fully-functional DiscussionEmbed Component
-export function DiscussionEmbed({ shortname, config, onLoadSuccess, onLoadError }: DiscussionEmbedProps) {
-  useEffect(() => {
-    // 1. Configure global window variables for Disqus loader
-    const disqusConfig = function (this: any) {
-      this.page.url = config.url;
-      this.page.identifier = config.identifier;
-      this.page.title = config.title;
-      this.language = config.language;
-      this.page.developer = 1; // Strict bypass for development / iframe domain blocks
-
-      // Safely register ready callback if supported
-      this.callbacks = this.callbacks || {};
-      this.callbacks.onReady = this.callbacks.onReady || [];
-      this.callbacks.onReady.push(() => {
-        if (onLoadSuccess) onLoadSuccess();
-      });
-    };
-    (window as any).disqus_config = disqusConfig;
-    (window as any).disqus_developer = 1;
-
-    // 2. Clear old loaders to force fresh initialization on channel swap
-    const d = document;
-    const existingScript = d.querySelector('script[src*=".disqus.com/embed.js"]');
-    if (existingScript) {
-      existingScript.remove();
-    }
-
-    // 3. Check if Disqus script is already loaded and reset accordingly
-    if ((window as any).DISQUS) {
-      try {
-        (window as any).DISQUS.reset({
-          reload: true,
-          config: disqusConfig
-        });
-        if (onLoadSuccess) onLoadSuccess();
-      } catch (e) {
-        console.warn("Disqus reset failed gracefully:", e);
-        if (onLoadError) onLoadError();
-      }
-    } else {
-      // 4. Mount Disqus script asynchronously
-      try {
-        const s = d.createElement('script');
-        s.src = `https://${shortname}.disqus.com/embed.js`;
-        s.setAttribute('data-timestamp', +new Date() + '');
-        s.async = true;
-        s.onload = () => {
-          if (onLoadSuccess) onLoadSuccess();
-        };
-        s.onerror = (err) => {
-          console.error("Disqus script loading blocked:", err);
-          if (onLoadError) onLoadError();
-        };
-        (d.head || d.body).appendChild(s);
-      } catch (err) {
-        console.error("Disqus script mounting exception:", err);
-        if (onLoadError) onLoadError();
-      }
-    }
-  }, [shortname, config.url, config.identifier, config.title, config.language, onLoadSuccess, onLoadError]);
-
-  return <div id="disqus_thread" className="w-full h-full min-h-[300px]" />;
-}
-
 const SOCIAL_TOPICS: Topic[] = [
   {
     id: 'sigma-general',
@@ -277,19 +199,6 @@ const INITIAL_COMMENTS: Record<string, ForumComment[]> = {
 
 export default function SocialForum() {
   const [activeTopic, setActiveTopic] = useState<Topic>(SOCIAL_TOPICS[0]);
-  
-  // Choose between local sandbox forum stream or remote Disqus network script
-  const [forumMode, setForumMode] = useState<'local' | 'disqus'>(() => {
-    return (safeStorage.getItem('sigma_forum_mode') as 'local' | 'disqus') || 'local';
-  });
-
-  // Custom Disqus Shortname settings with local cache fallback
-  const [disqusShortname, setDisqusShortname] = useState(() => safeStorage.getItem('sigma_disqus_shortname') || 'sigma-learner');
-  const [tempShortname, setTempShortname] = useState(disqusShortname);
-  const [shortnameStatusMsg, setShortnameStatusMsg] = useState('');
-  const [disqusLoadingState, setDisqusLoadingState] = useState<'loading' | 'loaded' | 'failed' | 'timeout'>('loading');
-  const [clarityLoaded, setClarityLoaded] = useState(false);
-  const [showConfig, setShowConfig] = useState(false);
 
   // Local comments state cached in safeStorage
   const [localComments, setLocalComments] = useState<Record<string, ForumComment[]>>(() => {
@@ -310,47 +219,6 @@ export default function SocialForum() {
   const [newCommentText, setNewCommentText] = useState('');
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
-
-  // Construct stable, clean page URL for Disqus integration matching current selected forum channel
-  const disqusUrl = `${window.location.origin}/social/${activeTopic.id}`;
-
-  // Check if Microsoft Clarity is active/loaded dynamically
-  useEffect(() => {
-    const checkClarity = () => {
-      if ((window as any).clarity) {
-        setClarityLoaded(true);
-      }
-    };
-    checkClarity();
-    const interval = setInterval(checkClarity, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Update Disqus loading timer or state when Disqus topic or settings change
-  useEffect(() => {
-    if (forumMode !== 'disqus') return;
-    setDisqusLoadingState('loading');
-
-    // Enable developer mode globally for Disqus load sequence
-    (window as any).disqus_developer = 1;
-
-    // Set a safety timeout to detect AdBlockers or Sandboxing blocks after 6 seconds
-    const timer = setTimeout(() => {
-      const container = document.getElementById('disqus_thread');
-      if (container && !container.hasChildNodes()) {
-        setDisqusLoadingState('timeout');
-      }
-    }, 6000);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [disqusUrl, activeTopic.id, activeTopic.title, disqusShortname, forumMode]);
-
-  // Sync forum mode changes to safeStorage
-  useEffect(() => {
-    safeStorage.setItem('sigma_forum_mode', forumMode);
-  }, [forumMode]);
 
   // Handle local comment commits
   const saveCommentsToStorage = (updated: Record<string, ForumComment[]>) => {
@@ -565,171 +433,18 @@ export default function SocialForum() {
           })}
         </div>
       </div>
-
       {/* Main Comments Container Box */}
       <div className="bg-white border border-slate-200 rounded-3xl p-6 md:p-8 shadow-sm space-y-6">
         
-        {/* Discussion Engine Selector Top Tab */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-100 pb-5 mb-2 gap-4">
-          <div className="text-left">
-            <h3 className="text-xs font-black uppercase text-indigo-650 tracking-wider font-mono">
-              Discussion Forum Stream
-            </h3>
-            <p className="text-[11px] text-slate-400">Control active streaming layout & cookies options</p>
-          </div>
-          
-          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 select-none">
-            <button
-              onClick={() => setForumMode('local')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                forumMode === 'local'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Offline Sandbox Forum</span>
-            </button>
-            <button
-              onClick={() => setForumMode('disqus')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
-                forumMode === 'disqus'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-900'
-              }`}
-            >
-              <Globe className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Disqus Embedded Channel</span>
-            </button>
-          </div>
+        {/* Discussion Header */}
+        <div className="border-b border-slate-100 pb-5 mb-2 text-left">
+          <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider font-mono">
+            Classroom Discussion Stream & Notes
+          </h3>
+          <p className="text-[11px] text-slate-405">Read and post local sandbox insights (Offline Protected)</p>
         </div>
 
-        {/* 1. DISQUS STREAM MODE */}
-        {forumMode === 'disqus' && (
-          <div className="space-y-6 animate-fade-in">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 p-4 border border-slate-200 rounded-2xl gap-3 text-left">
-              <div>
-                <p className="text-xs font-bold text-slate-800">Reviewing Live Disqus Network</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">
-                  Loads external client scripts. Run standalone or open in index tab if blocked.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  onClick={() => setShowConfig(!showConfig)}
-                  className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition flex items-center gap-1 text-[10px] font-mono font-bold"
-                >
-                  <Settings className="w-3.5 h-3.5" />
-                  Configure Channel
-                </button>
-                <div className={`flex items-center gap-1.5 text-[10px] font-mono font-bold border rounded-lg px-2 py-1 ${
-                  disqusLoadingState === 'loaded' 
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
-                    : 'bg-amber-50 border-amber-200 text-amber-700'
-                }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${
-                    disqusLoadingState === 'loaded' ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'
-                  }`} />
-                  <span>Channel: "{disqusShortname}"</span>
-                </div>
-              </div>
-            </div>
-
-            {showConfig && (
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4 font-sans text-left">
-                <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 font-mono flex items-center gap-2">
-                  <Settings className="w-4 h-4 text-slate-500" />
-                  Developer Forum Customizer
-                </h4>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Disqus comments are served under a specific forum channel called a <strong>Shortname</strong>. 
-                  Input your personal shortname below to instantly hook up your live comments.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-2 max-w-md">
-                  <input
-                    type="text"
-                    value={tempShortname}
-                    onChange={(e) => setTempShortname(e.target.value.trim().toLowerCase())}
-                    placeholder="e.g. sigma-learner"
-                    className="flex-grow bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                  <button
-                    onClick={() => {
-                      if (tempShortname) {
-                        safeStorage.setItem('sigma_disqus_shortname', tempShortname);
-                        setDisqusShortname(tempShortname);
-                        setShortnameStatusMsg('Shortname saved! Reloading thread...');
-                        setTimeout(() => setShortnameStatusMsg(''), 3000);
-                      } else {
-                        safeStorage.removeItem('sigma_disqus_shortname');
-                        setDisqusShortname('sigma-learner');
-                        setTempShortname('sigma-learner');
-                        setShortnameStatusMsg('Reset to default.');
-                        setTimeout(() => setShortnameStatusMsg(''), 3000);
-                      }
-                    }}
-                    className="bg-slate-900 text-white text-xs font-mono font-bold px-4 py-2 rounded-xl border-b-2 border-black hover:bg-slate-950 transition active:border-b-0"
-                  >
-                    Save
-                  </button>
-                </div>
-                {shortnameStatusMsg && (
-                  <p className="text-[10px] font-mono text-emerald-600 font-semibold flex items-center gap-1">
-                    <Check className="w-3 h-3" />
-                    {shortnameStatusMsg}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {(disqusLoadingState === 'timeout' || disqusLoadingState === 'failed') && (
-              <div className="bg-rose-50/70 border border-rose-100 rounded-2xl p-4 md:p-5 flex flex-col md:flex-row gap-4 font-sans text-xs text-rose-850 justify-between items-start md:items-center text-left">
-                <div className="flex gap-3 leading-relaxed">
-                  <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                    <p className="font-bold text-rose-950">Script Connection Diagnostics Notice (AdBlock Detected?)</p>
-                    <p>
-                      Disqus script injection timed out. This is extremely common in sandbox environments 
-                      like <strong>Google AI Studio Code Preview</strong>.
-                    </p>
-                    <p className="text-rose-700">
-                      Browsers automatically block external scripts inside iframe containers depending on your cookie, shields, or tracking settings.
-                    </p>
-                    <p className="text-slate-600 font-medium">
-                      💡 <strong>Unblock Tip:</strong> Simply switch to the <strong>Offline Sandbox Forum</strong> stream above for a perfect local discussion experience, or double-click <strong>"Open inside a new tab"</strong> at the top right context.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Disqus forum embed loader */}
-            <div className="min-h-[300px] border border-slate-100 rounded-2xl p-4 bg-slate-50/50 relative">
-              {disqusLoadingState === 'loading' && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-10 space-y-3 font-mono">
-                  <span className="w-8 h-8 rounded-full border-2 border-t-indigo-600 border-slate-100 animate-spin" />
-                  <p className="text-xs text-slate-500 font-bold uppercase tracking-wider animate-pulse">Mounting Disqus Thread...</p>
-                </div>
-              )}
-              <DiscussionEmbed
-                key={`${disqusShortname}-${activeTopic.id}`}
-                shortname={disqusShortname}
-                config={{
-                  url: disqusUrl,
-                  identifier: activeTopic.id,
-                  title: activeTopic.title,
-                  language: 'en'
-                }}
-                onLoadSuccess={() => setDisqusLoadingState('loaded')}
-                onLoadError={() => setDisqusLoadingState('failed')}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* 2. LOCAL OFFLINE OFFLINE-RELIABLE STREAM MODE (DEFAULT) */}
-        {forumMode === 'local' && (
-          <div className="space-y-6 animate-fade-in text-left">
+        <div className="space-y-6 animate-fade-in text-left">
             
             {/* User Identity Setup Panel Banner */}
             <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-slate-50 border border-slate-200/60 p-4 rounded-2xl">
@@ -975,9 +690,6 @@ export default function SocialForum() {
             </form>
 
           </div>
-        )}
-
-
 
       </div>
     </div>

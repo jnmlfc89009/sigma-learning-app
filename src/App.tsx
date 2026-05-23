@@ -28,6 +28,7 @@ import StoreScreen from './components/StoreScreen';
 import SecurityConsole from './components/SecurityConsole';
 import ChatbotWidget from './components/ChatbotWidget';
 import SocialForum from './components/SocialForum';
+import DisqusSection from './components/DisqusSection';
 import { UserProfile, LearningLevel } from './types';
 import { encryptPayload } from './lib/crypto';
 import { clientDb, getDbConnectionStatus } from './lib/clientDb';
@@ -341,7 +342,46 @@ export default function App() {
 
   // Not authenticated
   if (!user || !token) {
-    return <AuthScreen onSuccess={handleAuthSuccess} />;
+    return (
+      <div id="unauthenticated-application-shell" className="min-h-screen bg-brand-light flex flex-col">
+        {/* Simplified Header for logged out users/guests */}
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm px-4 md:px-8">
+          <div className="max-w-7xl mx-auto flex items-center justify-between h-16">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-brand-secondary flex items-center justify-center p-1.5 border-b border-teal-900 shadow-sm">
+                <span className="text-white font-mono font-black text-sm">Σ</span>
+              </div>
+              <span className="font-display font-black text-lg tracking-tight text-brand-primary">
+                SIGMA LEARNING
+              </span>
+            </div>
+            <div className="text-xs text-slate-500 font-mono font-bold uppercase tracking-wider hidden sm:block">
+              Guest Access Lobby
+            </div>
+          </div>
+        </header>
+
+        {/* Authenticate panel Content block */}
+        <div className="flex-grow">
+          <AuthScreen onSuccess={handleAuthSuccess} />
+        </div>
+
+        {/* Public review comment disqus element at the bottom */}
+        <div className="p-4 md:p-8 max-w-7xl mx-auto w-full">
+          <DisqusSection activeTab="auth" />
+        </div>
+
+        {/* Guest simple footer */}
+        <footer className="bg-white border-t border-slate-100 py-6 text-center text-slate-400 font-sans text-xs">
+          <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
+            <span>MIT OpenCourseWare courseware syllabus mapping © 2026. All rights and metrics verified.</span>
+            <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded tracking-wide font-mono uppercase">
+              Secure Auth Channel Active
+            </span>
+          </div>
+        </footer>
+      </div>
+    );
   }
 
   // Active playing level view
@@ -579,6 +619,9 @@ export default function App() {
         {activeTab === 'security' && (
           <SecurityConsole />
         )}
+
+        {/* Persistent Disqus Comments Section at the bottom of all platform views */}
+        <DisqusSection activeTab={activeTab} />
       </main>
 
       {/* 3. Humble footer matching Design Philosophy */}
