@@ -4,9 +4,10 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { BarChart, Percent, Plus, Trash2, ArrowRightLeft, Database, Sparkles, TrendingUp, Cpu, Lock, Award } from 'lucide-react';
+import { BarChart, Percent, Plus, Trash2, ArrowRightLeft, Database, Sparkles, TrendingUp, Lock, Award } from 'lucide-react';
 import { UserProfile } from '../types';
 import { getSupabaseClient } from '../lib/supabaseClient';
+import SponsorAdBanner from './SponsorAdBanner';
 
 interface InsightsDashboardProps {
   user: UserProfile;
@@ -311,31 +312,13 @@ export default function InsightsDashboard({ user, onNavigateToStore }: InsightsD
             Real-time simulations of core accounting formulas, compounding vectors, and spatial distribution curves.
           </p>
         </div>
-        <div className="flex items-center gap-2 bg-slate-900 text-white p-3 rounded-2xl border border-slate-800">
-          <Cpu className="w-5 h-5 text-indigo-400" />
-          <span className="font-mono text-[10px] text-slate-300 font-bold uppercase tracking-wider">MATHEMATICAL SANDBOX SANDBOX: ONLINE</span>
-        </div>
       </div>
 
-      {user.tier === 'scholar' && (
-        <div id="sandbox-scholar-ad" className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 border-b-4 rounded-3xl p-5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 animate-pop">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-indigo-600 text-white rounded-2xl shrink-0 shadow">
-              <Sparkles className="w-5 h-5 fill-indigo-200" />
-            </div>
-            <div>
-              <span className="text-[9px] font-extrabold text-indigo-700 uppercase tracking-widest block font-mono">SPONSORED PROMOTION (Ad Banner)</span>
-              <span className="font-display font-bold text-sm text-slate-900 block mt-0.5">Double-Entry T-Accounts & Probability Curves Locked</span>
-              <p className="text-slate-500 text-xs">Unlock all advanced simulation laboratories, customized corporate accounts, and double-XP multipliers by choosing the Analyst Premium subscription today!</p>
-            </div>
-          </div>
-          <button
-            onClick={onNavigateToStore}
-            className="w-full sm:w-auto px-5 py-2.5 bg-slate-900 hover:bg-slate-950 text-white font-bold rounded-xl text-xs uppercase tracking-wider border-b-2 shrink-0 cursor-pointer"
-          >
-            Upgrade Plan
-          </button>
-        </div>
+      {isScholar && (
+        <SponsorAdBanner 
+          onNavigateToStore={onNavigateToStore} 
+          placement="insights" 
+        />
       )}
 
       {/* BLOCK 1: MIT COMPREHENSIVE PERSONAL FINANCE - EXPONENTIAL COMPOUND INTEREST CURVE */}

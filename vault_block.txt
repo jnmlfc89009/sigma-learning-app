@@ -1,0 +1,249 @@
+{/* ROW 2: THEMED REWARD TIERS (SUBLIME GEM VAULT) */}
+        <div id="sublime-themed-vault-card" className="bg-white border border-slate-200 rounded-[32px] p-6 space-y-6 text-left animate-pop">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div className="space-y-1 max-w-2xl">
+              <span className="text-[9px] bg-emerald-50 border border-emerald-200 text-emerald-700 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider font-mono flex items-center gap-1 w-fit">
+                <Trophy className="w-3.5 h-3.5 text-emerald-600 fill-emerald-500" />
+                Themed Reward Vault
+              </span>
+              <h3 className="font-display font-black text-2xl text-slate-900 tracking-tight">
+                Sublime Gem Trade-Up Vault
+              </h3>
+              <p className="text-slate-500 text-xs">
+                Provide yourself with long-term academic milestones. Convert standard accumulated gems into prestigious Rare and Legendary tokens. Displays prominently inside your trophy cabinets.
+              </p>
+            </div>
+
+            {/* Display collected items summary cabinet */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex gap-4 text-center">
+              <div>
+                <span className="text-[8px] font-bold text-slate-400 block uppercase font-mono">Jade</span>
+                <span className="font-mono text-base font-black text-emerald-600">
+                  {user.unlockedItems?.filter(x => x === 'trophy_gem_jade').length || 0}x
+                </span>
+              </div>
+              <div className="border-l border-slate-200"></div>
+              <div>
+                <span className="text-[8px] font-bold text-slate-400 block uppercase font-mono">Sapphire</span>
+                <span className="font-mono text-base font-black text-blue-600">
+                  {user.unlockedItems?.filter(x => x === 'trophy_gem_sapphire').length || 0}x
+                </span>
+              </div>
+              <div className="border-l border-slate-200"></div>
+              <div>
+                <span className="text-[8px] font-bold text-slate-400 block uppercase font-mono">Ruby</span>
+                <span className="font-mono text-base font-black text-rose-600">
+                  {user.unlockedItems?.filter(x => x === 'trophy_gem_ruby').length || 0}x
+                </span>
+              </div>
+              <div className="border-l border-slate-200"></div>
+              <div>
+                <span className="text-[8px] font-bold text-slate-400 block uppercase font-mono">Obsidian</span>
+                <span className="font-mono text-base font-black text-purple-650">
+                  {user.unlockedItems?.filter(x => x === 'trophy_gem_obsidian').length || 0}x
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {vaultSuccess && (
+            <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs flex items-center gap-2.5 animate-pop">
+              <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+              <span className="font-semibold">{vaultSuccess}</span>
+            </div>
+          )}
+
+          {vaultError && (
+            <div className="p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-xs flex items-center gap-2.5 animate-pop">
+              <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0" />
+              <span className="font-semibold">{vaultError}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-1">
+            {tradeTiers.map(tier => {
+              const count = user.unlockedItems?.filter(x => x === tier.id).length || 0;
+              const hasBoughtBadge = count > 0;
+              const canAfford = user.gems >= tier.price;
+
+              return (
+                <div
+                  key={tier.id}
+                  className={`p-4 border rounded-2xl flex flex-col justify-between gap-4 transition-all duration-200 ${tier.bgColor} ${
+                    hasBoughtBadge ? "shadow-sm border-slate-300" : "border-slate-205 bg-white"
+                  }`}
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[8px] font-mono font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded truncate">
+                        {tier.badge}
+                      </span>
+                      <span className="font-mono text-[9px] font-bold bg-slate-105 text-slate-500 px-1.5 py-0.5 rounded shrink-0">
+                        Owned: {count}
+                      </span>
+                    </div>
+
+                    <div className="flex gap-2 items-center">
+                      <Gem className={`w-6 h-6 shrink-0 ${tier.iconColor}`} />
+                      <h4 className="font-display font-black text-[11px] text-slate-900 uppercase">
+                        {tier.name}
+                      </h4>
+                    </div>
+
+                    <p className="text-slate-500 text-[10px] leading-relaxed">
+                      {tier.desc}
+                    </p>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => tradeTrophiesGems(tier)}
+                      disabled={vaultLoading !== null || !canAfford}
+                      className={`w-full py-2 text-[10px] font-extrabold font-mono uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-1 border-b-2 cursor-pointer ${
+                        !canAfford
+                          ? "bg-stone-50 border-stone-200 text-stone-400 cursor-not-allowed border-b"
+                          : "bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200"
+                      }`}
+                    >
+                      {vaultLoading === tier.id ? (
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <>
+                          <Coins className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
+                          Trade {tier.price} 💎
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        
+
+        {/* ROW 2: THEMED REWARD TIERS (SUBLIME GEM VAULT) */}
+        <div id="sublime-themed-vault-card" className="bg-white border border-slate-200 rounded-[32px] p-6 space-y-6 text-left animate-pop">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div className="space-y-1 max-w-2xl">
+              <span className="text-[9px] bg-emerald-50 border border-emerald-200 text-emerald-700 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider font-mono flex items-center gap-1 w-fit">
+                <Trophy className="w-3.5 h-3.5 text-emerald-600 fill-emerald-500" />
+                Themed Reward Vault
+              </span>
+              <h3 className="font-display font-black text-2xl text-slate-900 tracking-tight">
+                Sublime Gem Trade-Up Vault
+              </h3>
+              <p className="text-slate-500 text-xs">
+                Provide yourself with long-term academic milestones. Convert standard accumulated gems into prestigious Rare and Legendary tokens. Displays prominently inside your trophy cabinets.
+              </p>
+            </div>
+
+            {/* Display collected items summary cabinet */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex gap-4 text-center">
+              <div>
+                <span className="text-[8px] font-bold text-slate-400 block uppercase font-mono">Jade</span>
+                <span className="font-mono text-base font-black text-emerald-600">
+                  {user.unlockedItems?.filter(x => x === 'trophy_gem_jade').length || 0}x
+                </span>
+              </div>
+              <div className="border-l border-slate-200"></div>
+              <div>
+                <span className="text-[8px] font-bold text-slate-400 block uppercase font-mono">Sapphire</span>
+                <span className="font-mono text-base font-black text-blue-600">
+                  {user.unlockedItems?.filter(x => x === 'trophy_gem_sapphire').length || 0}x
+                </span>
+              </div>
+              <div className="border-l border-slate-200"></div>
+              <div>
+                <span className="text-[8px] font-bold text-slate-400 block uppercase font-mono">Ruby</span>
+                <span className="font-mono text-base font-black text-rose-600">
+                  {user.unlockedItems?.filter(x => x === 'trophy_gem_ruby').length || 0}x
+                </span>
+              </div>
+              <div className="border-l border-slate-200"></div>
+              <div>
+                <span className="text-[8px] font-bold text-slate-400 block uppercase font-mono">Obsidian</span>
+                <span className="font-mono text-base font-black text-purple-650">
+                  {user.unlockedItems?.filter(x => x === 'trophy_gem_obsidian').length || 0}x
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {vaultSuccess && (
+            <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs flex items-center gap-2.5 animate-pop">
+              <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+              <span className="font-semibold">{vaultSuccess}</span>
+            </div>
+          )}
+
+          {vaultError && (
+            <div className="p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-xs flex items-center gap-2.5 animate-pop">
+              <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0" />
+              <span className="font-semibold">{vaultError}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-1">
+            {tradeTiers.map(tier => {
+              const count = user.unlockedItems?.filter(x => x === tier.id).length || 0;
+              const hasBoughtBadge = count > 0;
+              const canAfford = user.gems >= tier.price;
+
+              return (
+                <div
+                  key={tier.id}
+                  className={`p-4 border rounded-2xl flex flex-col justify-between gap-4 transition-all duration-200 ${tier.bgColor} ${
+                    hasBoughtBadge ? "shadow-sm border-slate-300" : "border-slate-205 bg-white"
+                  }`}
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[8px] font-mono font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded truncate">
+                        {tier.badge}
+                      </span>
+                      <span className="font-mono text-[9px] font-bold bg-slate-105 text-slate-500 px-1.5 py-0.5 rounded shrink-0">
+                        Owned: {count}
+                      </span>
+                    </div>
+
+                    <div className="flex gap-2 items-center">
+                      <Gem className={`w-6 h-6 shrink-0 ${tier.iconColor}`} />
+                      <h4 className="font-display font-black text-[11px] text-slate-900 uppercase">
+                        {tier.name}
+                      </h4>
+                    </div>
+
+                    <p className="text-slate-500 text-[10px] leading-relaxed">
+                      {tier.desc}
+                    </p>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => tradeTrophiesGems(tier)}
+                      disabled={vaultLoading !== null || !canAfford}
+                      className={`w-full py-2 text-[10px] font-extrabold font-mono uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-1 border-b-2 cursor-pointer ${
+                        !canAfford
+                          ? "bg-stone-50 border-stone-200 text-stone-400 cursor-not-allowed border-b"
+                          : "bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200"
+                      }`}
+                    >
+                      {vaultLoading === tier.id ? (
+                        <RefreshCw className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <>
+                          <Coins className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
+                          Trade {tier.price} 💎
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        
+
+        

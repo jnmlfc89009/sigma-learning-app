@@ -111,7 +111,9 @@ function fromDbUser(row: any): UserProfile | null {
       personalFinance: { level: 1, progressPercent: 0, completedLevels: {} },
       accounting: { level: 1, progressPercent: 0, completedLevels: {} },
       statistics: { level: 1, progressPercent: 0, completedLevels: {} },
-      appliedMath: { level: 1, progressPercent: 0, completedLevels: {} }
+      appliedMath: { level: 1, progressPercent: 0, completedLevels: {} },
+      calculus: { level: 1, progressPercent: 0, completedLevels: {} },
+      microeconomics: { level: 1, progressPercent: 0, completedLevels: {} }
     }),
     unlockedLevels: typeof row.unlocked_levels === 'string' ? JSON.parse(row.unlocked_levels) : (row.unlocked_levels || {}),
     createdAt: row.created_at || new Date().toISOString()
@@ -230,35 +232,39 @@ export const clientDb = {
     const supabase = initializeSupabaseClient();
     const emailClean = user.email.toLowerCase().trim();
     
+    // Resolve password hash from either params or local storage
+    const local = getLocalUsers();
+    let existingPass = passwordHashToPersist || local[user.uid]?.passwordHash || '';
+
     if (supabase && connectionMode === 'supabase') {
       try {
         const dbRow = toDbUser(user) as any;
-        if (passwordHashToPersist) {
-          dbRow.password_hash = passwordHashToPersist;
+        let authError = null;
+        
+        if (existingPass) {
+          dbRow.password_hash = existingPass;
+          const { error } = await supabase.from('users').upsert(dbRow);
+          authError = error;
+        } else {
+          // Fallback to update to prevent NOT NULL constraints when syncing from new device
+          const { error } = await supabase.from('users').update(dbRow).eq('uid', user.uid);
+          authError = error;
         }
 
-        const { error } = await supabase
-          .from('users')
-          .upsert(dbRow);
-
-        if (!error) {
+        if (!authError) {
           console.log('🚀 User profile successfully synced to Supabase Cloud.');
           // Also track in LocalStorage for offline performance caching
-          const local = getLocalUsers();
-          const existingPass = local[user.uid]?.passwordHash || passwordHashToPersist || '';
           local[user.uid] = { ...user, email: emailClean, passwordHash: existingPass };
           saveLocalUsers(local);
           return;
         }
-        console.error('Supabase write aborted, falling back to LocalStorage:', error.message);
+        console.error('Supabase write aborted, falling back to LocalStorage:', authError.message || authError);
       } catch (err: any) {
         console.error('Supabase sync exception, falling back to LocalStorage:', err?.message || err);
       }
     }
 
     // Local Storage fallback write
-    const local = getLocalUsers();
-    const existingPass = local[user.uid]?.passwordHash || passwordHashToPersist || '';
     local[user.uid] = { ...user, email: emailClean, passwordHash: existingPass };
     saveLocalUsers(local);
   },
@@ -287,7 +293,9 @@ export const clientDb = {
         personalFinance: { level: 1, progressPercent: 0, completedLevels: {} },
         accounting: { level: 1, progressPercent: 0, completedLevels: {} },
         statistics: { level: 1, progressPercent: 0, completedLevels: {} },
-        appliedMath: { level: 1, progressPercent: 0, completedLevels: {} }
+        appliedMath: { level: 1, progressPercent: 0, completedLevels: {} },
+        calculus: { level: 1, progressPercent: 0, completedLevels: {} },
+        microeconomics: { level: 1, progressPercent: 0, completedLevels: {} }
       },
       unlockedLevels: {},
       unlockedItems: [],
@@ -336,6 +344,72 @@ export const clientDb = {
     );
 
     return { token: profile.uid, user: profile };
+  },
+
+  // 5b. Authenticate with Google or Facebook Federated identity
+  async loginOrRegisterFederated(provider: 'google' | 'facebook', email: string, username: string): Promise<{ token: string; user: UserProfile }> {
+    const emailClean = email.toLowerCase().trim();
+    const userRecord = await this.getUserByEmail(emailClean);
+
+    if (userRecord) {
+      // User exists! Connect provider if not linked and sign them in
+      const profile = userRecord.profile;
+      if (provider === 'google') profile.googleLinked = true;
+      if (provider === 'facebook') profile.facebookLinked = true;
+
+      profile.streak = Math.max(profile.streak || 1, 1);
+      await this.saveUser(profile);
+
+      await this.logSecurityAction(
+        "USER_AUTHENTICATED_FEDERATED",
+        `Federated login success via ${provider} for user: ${emailClean}. Handshake confirmed.`,
+        `Provider: ${provider}`,
+        true
+      );
+
+      return { token: profile.uid, user: profile };
+    } else {
+      // User does not exist! Sign them up smoothly
+      const uid = 'usr_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+      const newUserProfile: UserProfile = {
+        uid,
+        username,
+        email: emailClean,
+        streak: 1,
+        gems: 100,
+        tier: 'scholar',
+        billingCycle: 'monthly',
+        avatarSeed: Math.floor(1000 + Math.random() * 9000).toString(),
+        createdAt: new Date().toISOString(),
+        progress: {
+          personalFinance: { level: 1, progressPercent: 0, completedLevels: {} },
+          accounting: { level: 1, progressPercent: 0, completedLevels: {} },
+          statistics: { level: 1, progressPercent: 0, completedLevels: {} },
+          appliedMath: { level: 1, progressPercent: 0, completedLevels: {} },
+          calculus: { level: 1, progressPercent: 0, completedLevels: {} },
+          microeconomics: { level: 1, progressPercent: 0, completedLevels: {} }
+        },
+        unlockedLevels: {},
+        unlockedItems: [],
+        activeTitle: '',
+        googleLinked: provider === 'google',
+        facebookLinked: provider === 'facebook'
+      };
+
+      // Set a random placeholder password hash for federated accounts so they can optionally update it later
+      const placeholderPassword = 'FEDERATED_' + Math.random().toString(36).substring(2, 10) + Date.now().toString();
+      
+      await this.saveUser(newUserProfile, placeholderPassword);
+
+      await this.logSecurityAction(
+        "USER_REGISTERED_FEDERATED",
+        `New federated account deployed via ${provider} for user: ${emailClean}. Complete access granted.`,
+        `Provider: ${provider}`,
+        true
+      );
+
+      return { token: uid, user: newUserProfile };
+    }
   },
 
   // 6. Security Logs writing

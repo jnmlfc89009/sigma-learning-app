@@ -67,142 +67,23 @@ const SOCIAL_TOPICS: Topic[] = [
 ];
 
 const INITIAL_COMMENTS: Record<string, ForumComment[]> = {
-  'sigma-general': [
-    {
-      id: 'gen-1',
-      author: 'Aria Vance',
-      role: 'Curriculum Lead',
-      avatarColor: 'bg-indigo-500',
-      content: 'Welcome to the Sigma Learning general forum! Use this space to plan your study roadmaps, ask about lessons, and build study cohorts. What is everyone currently focusing on?',
-      timestamp: '2 hours ago',
-      likes: 12,
-      replies: [
-        {
-          id: 'gen-1-1',
-          author: 'Devon Chen',
-          role: 'Junior Scholar',
-          avatarColor: 'bg-amber-500',
-          content: 'I just finished the cryptography audit path! Dynamic calculation drills really pushed my understanding of Caesar and Vignère shifts. Highly recommend it.',
-          timestamp: '1 hour ago',
-          likes: 5
-        }
-      ]
-    },
-    {
-      id: 'gen-2',
-      author: 'Prof. Marcus Brody',
-      role: 'Sigma Advisor',
-      avatarColor: 'bg-slate-700',
-      content: "A quick tip for new scholars: don't rush through the Double-Entry Accounting module. Ensuring your debit and credit balances always match under stress is crucial for mastering simulated corporate ledgers later on.",
-      timestamp: 'Yesterday',
-      likes: 24,
-      replies: []
-    }
-  ],
-  'sigma-accounting': [
-    {
-      id: 'acc-1',
-      author: 'Elena Rostova',
-      role: 'Accounting Mentor',
-      avatarColor: 'bg-emerald-500',
-      content: "Let's talk about double-entry integrity. When posting depreciations in the trial ledger, remember that Depreciation Expense is matched under debits, while Accumulated Depreciation is a contra-asset under credit. Anyone ran into balance mismatch issues?",
-      timestamp: '4 hours ago',
-      likes: 8,
-      replies: [
-        {
-          id: 'acc-1-1',
-          author: 'Michael K.',
-          role: 'Audit Intern',
-          avatarColor: 'bg-teal-500',
-          content: 'Yes! I spent 30 minutes tracing a $500 discrepancy. I accidentally credited equipment asset directly instead of using the contra-asset account. Lessons learned!',
-          timestamp: '3 hours ago',
-          likes: 3
-        }
-      ]
-    },
-    {
-      id: 'acc-2',
-      author: 'Warren B.',
-      role: 'Value Investor',
-      avatarColor: 'bg-amber-600',
-      content: 'Accounting is the language of business. Mastering the cash flow statement alongside your balance sheet reveals whether the net earnings actually have cash velocity or are just paper accruals. Excellent simulation design!',
-      timestamp: '2 days ago',
-      likes: 19,
-      replies: []
-    }
-  ],
-  'sigma-statistics': [
-    {
-      id: 'stat-1',
-      author: 'Dr. Sarah Jenkins',
-      role: 'Fellow Statistician',
-      avatarColor: 'bg-teal-600',
-      content: "Has anyone calculated the Banzhaf Power Index for the voting scenario in Applied Mathematics? It's fascinating how a party holding only 15% of the total seats can wield up to 40% of the true swing power under specific coalition weights.",
-      timestamp: '5 hours ago',
-      likes: 15,
-      replies: [
-        {
-          id: 'stat-1-1',
-          author: 'Takahiro S.',
-          role: 'Analyst',
-          avatarColor: 'bg-sky-500',
-          content: "Absolutely. It is the perfect math proof that delegate count doesn't map linearly to actual legislative bargaining leverage. It completely changes how one views parliamentary coalitions.",
-          timestamp: '3 hours ago',
-          likes: 7
-        }
-      ]
-    },
-    {
-      id: 'stat-2',
-      author: 'Liam Vance',
-      role: 'Data Miner',
-      avatarColor: 'bg-indigo-600',
-      content: 'For the regression exercises, make sure to look out for multi-collinearity. Running dependent parameters like age and experience together in the same linear projection often inflates variance standard errors!',
-      timestamp: '1 day ago',
-      likes: 11,
-      replies: []
-    }
-  ],
-  'sigma-finance': [
-    {
-      id: 'fin-1',
-      author: 'Carlos Mendes',
-      role: 'Bento Capitalist',
-      avatarColor: 'bg-amber-500',
-      content: "A classic progressive taxation scenario is often misunderstood: moving to a higher marginal tax rate (e.g. from 15% to 25%) does not apply the 25% tax rate to your entire income. Only the amount within that specific bracket is taxed at the higher premium! Always check your marginal layers.",
-      timestamp: '1 day ago',
-      likes: 22,
-      replies: [
-        {
-          id: 'fin-1-1',
-          author: 'Sanjay Gupta',
-          role: 'Scholar',
-          avatarColor: 'bg-rose-500',
-          content: 'Exactly! It is shocking how many professional-grade analysts make this basic blunder. The progressive taxation calculator on the math path demonstrates this beautifully with real curves.',
-          timestamp: '18 hours ago',
-          likes: 9
-        }
-      ]
-    },
-    {
-      id: 'fin-2',
-      author: 'Amara Nwosu',
-      role: 'Budget Optimizer',
-      avatarColor: 'bg-emerald-600',
-      content: 'Compound interest curve projections are exponential. Over a 30-year span, saving an extra $100 per month at an average 7% real return rate yields nearly $120,500, out of which over $84,000 is pure unearned interest returns! Time dominates principal.',
-      timestamp: '3 days ago',
-      likes: 14,
-      replies: []
-    }
-  ]
+  'sigma-general': [],
+  'sigma-accounting': [],
+  'sigma-statistics': [],
+  'sigma-finance': []
 };
 
-export default function SocialForum() {
+interface SocialForumProps {
+  isGuest?: boolean;
+  onSignUpPrompt?: () => void;
+}
+
+export default function SocialForum({ isGuest = false, onSignUpPrompt }: SocialForumProps) {
   const [activeTopic, setActiveTopic] = useState<Topic>(SOCIAL_TOPICS[0]);
 
   // Local comments state cached in safeStorage
   const [localComments, setLocalComments] = useState<Record<string, ForumComment[]>>(() => {
-    const saved = safeStorage.getItem('sigma_forum_comments_db');
+    const saved = safeStorage.getItem('sigma_forum_comments_db_v2');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -223,7 +104,7 @@ export default function SocialForum() {
   // Handle local comment commits
   const saveCommentsToStorage = (updated: Record<string, ForumComment[]>) => {
     setLocalComments(updated);
-    safeStorage.setItem('sigma_forum_comments_db', JSON.stringify(updated));
+    safeStorage.setItem('sigma_forum_comments_db_v2', JSON.stringify(updated));
   };
 
   const handlePostComment = (e: React.FormEvent) => {
@@ -363,7 +244,7 @@ export default function SocialForum() {
   };
 
   const handleResetForum = () => {
-    if (window.confirm("Standardize local chat comments back to pristine defaults? Your custom comments will be cleared.")) {
+    if (window.confirm("Clean and empty all discussion board threads? Your custom comments will be permanently cleared.")) {
       const resetComments = { ...INITIAL_COMMENTS };
       saveCommentsToStorage(resetComments);
     }
@@ -537,7 +418,7 @@ export default function SocialForum() {
                           {/* Actions: Like, Reply, Delete */}
                           <div className="flex items-center gap-4 text-[10px] font-mono font-bold text-slate-400 pt-1">
                             <button 
-                              onClick={() => handleLikeComment(comment.id)}
+                              onClick={() => isGuest ? onSignUpPrompt?.() : handleLikeComment(comment.id)}
                               type="button"
                               className={`flex items-center gap-1 transition ${comment.hasLiked ? 'text-rose-600' : 'hover:text-rose-600'}`}
                             >
@@ -546,7 +427,7 @@ export default function SocialForum() {
                             </button>
 
                             <button 
-                              onClick={() => setReplyingToId(replyingToId === comment.id ? null : comment.id)}
+                              onClick={() => isGuest ? onSignUpPrompt?.() : setReplyingToId(replyingToId === comment.id ? null : comment.id)}
                               type="button"
                               className="flex items-center gap-1 hover:text-indigo-600 transition"
                             >
@@ -625,7 +506,7 @@ export default function SocialForum() {
                                       
                                       <div className="flex items-center gap-3 text-[9px] font-mono font-bold text-slate-450 pt-0.5">
                                         <button 
-                                          onClick={() => handleLikeComment(reply.id, true, comment.id)}
+                                          onClick={() => isGuest ? onSignUpPrompt?.() : handleLikeComment(reply.id, true, comment.id)}
                                           type="button"
                                           className={`flex items-center gap-0.5 transition ${reply.hasLiked ? 'text-rose-600' : 'hover:text-rose-600'}`}
                                         >
@@ -659,7 +540,22 @@ export default function SocialForum() {
             </div>
 
             {/* Posting input Form */}
-            <form onSubmit={handlePostComment} className="pt-4 border-t border-slate-150 space-y-3">
+            {isGuest ? (
+              <div className="pt-6 border-t border-slate-150 p-5 bg-slate-50 rounded-2xl border border-dashed border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 mt-2">
+                <div className="space-y-1 text-center sm:text-left">
+                  <h6 className="font-display font-extrabold text-sm text-slate-900">Join the Academic Conversation</h6>
+                  <p className="text-[11px] text-slate-500 max-w-sm leading-normal">Please register or log in to post questions, share insights, and interact with fellow scholars on our community boards.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onSignUpPrompt}
+                  className="bg-indigo-650 hover:bg-indigo-700 text-white font-mono font-black text-xs px-5 py-2.5 rounded-2xl transition shadow-md active:scale-98 cursor-pointer shrink-0"
+                >
+                  Sign Up & Post
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handlePostComment} className="pt-4 border-t border-slate-150 space-y-3">
               <div className="space-y-1.5 text-left">
                 <label className="text-[11px] font-bold font-mono text-slate-500 uppercase tracking-wider block">
                   Compose Contribution
@@ -688,6 +584,7 @@ export default function SocialForum() {
                 </button>
               </div>
             </form>
+            )}
 
           </div>
 

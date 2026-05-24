@@ -4,15 +4,16 @@
  */
 
 import React, { useState } from 'react';
-import { Play, CheckCircle2, Lock, Star, ChevronRight, Award, Flame, Gem, Compass, BarChart2, Briefcase, Zap, ShieldAlert, Sparkles } from 'lucide-react';
+import { Play, CheckCircle2, Lock, Star, ChevronRight, Award, Flame, Gem, Compass, BarChart2, Briefcase, Zap, ShieldAlert, Sparkles, Calculator, TrendingUp } from 'lucide-react';
 import { UserProfile, LearningLevel } from '../types';
+import SponsorAdBanner from './SponsorAdBanner';
 
 interface PathMapProps {
   user: UserProfile;
   levels: LearningLevel[];
-  onStartLesson: (track: 'personalFinance' | 'accounting' | 'statistics' | 'appliedMath', levelNumber: number, chapterIndex: number) => void;
-  onSetTrack: (track: 'personalFinance' | 'accounting' | 'statistics' | 'appliedMath') => void;
-  onSelectTrackChoice: (track: 'personalFinance' | 'accounting' | 'statistics') => Promise<string | null>;
+  onStartLesson: (track: 'personalFinance' | 'accounting' | 'statistics' | 'appliedMath' | 'calculus' | 'microeconomics', levelNumber: number, chapterIndex: number) => void;
+  onSetTrack: (track: 'personalFinance' | 'accounting' | 'statistics' | 'appliedMath' | 'calculus' | 'microeconomics') => void;
+  onSelectTrackChoice: (track: 'personalFinance' | 'accounting' | 'statistics' | 'calculus' | 'microeconomics') => Promise<string | null>;
   onUnlockLevel: (track: string, levelNumber: number) => Promise<string | null>;
   onNavigateToStore: () => void;
 }
@@ -26,7 +27,7 @@ export default function PathMap({
   onUnlockLevel,
   onNavigateToStore
 }: PathMapProps) {
-  const [activeTrack, setActiveTrack] = useState<'personalFinance' | 'accounting' | 'statistics' | 'appliedMath'>('personalFinance');
+  const [activeTrack, setActiveTrack] = useState<'personalFinance' | 'accounting' | 'statistics' | 'appliedMath' | 'calculus' | 'microeconomics'>('accounting');
   const [expandedChapter, setExpandedChapter] = useState<number | null>(null);
   const [loadingAction, setLoadingAction] = useState<boolean>(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -41,15 +42,7 @@ export default function PathMap({
   const currentActiveLevel = userTrackProgress.level; // 1 to 12
 
   const trackLabels = {
-    personalFinance: {
-      name: "Personal Financial Literacy",
-      tag: "SCHOLAR-ATHLETE TRACK",
-      colorClass: "bg-emerald-500",
-      accentBorder: "border-emerald-600",
-      textColor: "text-emerald-700",
-      badgeColor: "bg-emerald-100",
-      icon: Briefcase
-    },
+    // Left Side: Core trial-capable tracks (Level 1-3 Free)
     accounting: {
       name: "Financial Accounting",
       tag: "DOUBLE-ENTRY DOMAIN",
@@ -59,8 +52,36 @@ export default function PathMap({
       badgeColor: "bg-teal-100",
       icon: Compass
     },
+    calculus: {
+      name: "Calculus",
+      tag: "MIT 18.01/18.02 CURRICULUM",
+      colorClass: "bg-fuchsia-500",
+      accentBorder: "border-fuchsia-600",
+      textColor: "text-fuchsia-700",
+      badgeColor: "bg-fuchsia-100",
+      icon: Calculator
+    },
+    appliedMath: {
+      name: "Daily Applied Math",
+      tag: "MAGNATE COGNITIVE VAULT",
+      colorClass: "bg-indigo-500",
+      accentBorder: "border-indigo-600",
+      textColor: "text-indigo-700",
+      badgeColor: "bg-indigo-100",
+      icon: Award
+    },
+    // Right Side: Exclusively Elite Magnate Tier tracks
+    personalFinance: {
+      name: "Personal Finance",
+      tag: "SCHOLAR-ATHLETE TRACK",
+      colorClass: "bg-emerald-500",
+      accentBorder: "border-emerald-600",
+      textColor: "text-emerald-700",
+      badgeColor: "bg-emerald-100",
+      icon: Briefcase
+    },
     statistics: {
-      name: "Statistics & Probability",
+      name: "Statistics",
       tag: "THE PATH TO PRECISION",
       colorClass: "bg-sky-500",
       accentBorder: "border-sky-600",
@@ -68,18 +89,18 @@ export default function PathMap({
       badgeColor: "bg-sky-100",
       icon: BarChart2
     },
-    appliedMath: {
-      name: "Daily Applied Mathematics",
-      tag: "MAGNATE COGNITIVE VAULT",
-      colorClass: "bg-indigo-500",
-      accentBorder: "border-indigo-600",
-      textColor: "text-indigo-700",
-      badgeColor: "bg-indigo-100",
-      icon: Award
+    microeconomics: {
+      name: "Microeconomics",
+      tag: "MIT 14.01 CURRICULUM",
+      colorClass: "bg-violet-500",
+      accentBorder: "border-violet-600",
+      textColor: "text-violet-700",
+      badgeColor: "bg-violet-100",
+      icon: TrendingUp
     }
   };
 
-  const handleTrackChange = (track: 'personalFinance' | 'accounting' | 'statistics' | 'appliedMath') => {
+  const handleTrackChange = (track: 'personalFinance' | 'accounting' | 'statistics' | 'appliedMath' | 'calculus' | 'microeconomics') => {
     setActiveTrack(track);
     onSetTrack(track);
     setExpandedChapter(null);
@@ -93,16 +114,17 @@ export default function PathMap({
       return { locked: false, reason: "" };
     }
 
-    // Applied Math is Magnate exclusive
-    if (track === 'appliedMath') {
+    // Statistics, Personal Finance, and Microeconomics are now exclusively Magnate levels/tracks
+    if (track === 'statistics' || track === 'personalFinance' || track === 'microeconomics') {
+      const trackName = trackLabels[track as keyof typeof trackLabels]?.name || track;
       return {
         locked: true,
-        reason: "appliedMath_magnate_only",
-        message: "Applied Daily Mathematics includes progressive taxation, cryptography, sports statistics, and is reserved exclusively for Magnate level subscribers."
+        reason: "magnate_only",
+        message: `${trackName} coursework is reserved exclusively for academic Magnate tier subscribers. Please upgrade to unlock immediate, unlimited access.`
       };
     }
 
-    // Free Scholar can learn any course, but strictly capped at Level 3
+    // Free Scholar can learn other courses, but strictly capped at Level 3
     if (user.tier === 'scholar') {
       if (levelNum > 3) {
         return {
@@ -151,7 +173,7 @@ export default function PathMap({
     return { locked: false, reason: "" };
   };
 
-  const handleChooseTrack = async (track: 'personalFinance' | 'accounting' | 'statistics') => {
+  const handleChooseTrack = async (track: 'personalFinance' | 'accounting' | 'statistics' | 'calculus' | 'microeconomics') => {
     setLoadingAction(true);
     setActionError(null);
     const err = await onSelectTrackChoice(track);
@@ -184,9 +206,9 @@ export default function PathMap({
   return (
     <div id="path-map-container" className="space-y-8 animate-pop">
       {/* 1. Track switcher and general summary card */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         {Object.entries(trackLabels).map(([key, info]) => {
-          const tKey = key as 'personalFinance' | 'accounting' | 'statistics' | 'appliedMath';
+          const tKey = key as 'personalFinance' | 'accounting' | 'statistics' | 'appliedMath' | 'calculus' | 'microeconomics';
           const isActive = activeTrack === tKey;
           const trackProg = user.progress[tKey] || { level: 1, progressPercent: 0, completedLevels: {} };
           const trackCompleted = Object.keys(trackProg.completedLevels || {}).length;
@@ -194,7 +216,7 @@ export default function PathMap({
           const Icon = info.icon;
 
           // Check if track is Magnate-exclusive
-          const isMagnateTrackLock = tKey === 'appliedMath' && user.tier !== 'magnate';
+          const isMagnateTrackLock = (tKey === 'personalFinance' || tKey === 'statistics' || tKey === 'microeconomics') && user.tier !== 'magnate';
           const isAnalystChoice = user.unlockedTrack === tKey;
 
           return (
@@ -249,26 +271,10 @@ export default function PathMap({
       </div>
 
       {user.tier === 'scholar' && (
-        <div id="scholar-vetted-ad" className="bg-gradient-to-r from-amber-50 to-amber-100/50 border border-amber-200 border-b-4 rounded-3xl p-5 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 animate-pop">
-          <div className="flex items-center gap-3.5">
-            <div className="p-3 bg-amber-500 text-white rounded-2xl shrink-0 shadow-sm border border-amber-600">
-              <Sparkles className="w-5 h-5 fill-amber-200" />
-            </div>
-            <div>
-              <span className="text-[9px] font-extrabold text-amber-600 uppercase tracking-widest block font-mono">SPONSORED EDUCATION LINK (Scholar Tier Ad)</span>
-              <span className="font-display font-black text-sm text-slate-900 block mt-0.5">Unlock Advanced Ledger & Normal Probability Laboratories!</span>
-              <p className="text-slate-500 text-xs mt-1 leading-normal">
-                Tired of the Level 3 limit? Upgrade to <strong className="text-teal-700">Analyst Premium</strong> to study level 1-12 fully, receive 500 💎 instantly, and completely remove all ad banners!
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onNavigateToStore}
-            className="w-full sm:w-auto px-5 py-3 bg-slate-900 hover:bg-slate-980 text-white font-extrabold rounded-xl text-xs uppercase tracking-wider border-b-2 border-slate-950 shrink-0 cursor-pointer"
-          >
-            Upgrade Now
-          </button>
-        </div>
+        <SponsorAdBanner 
+          onNavigateToStore={onNavigateToStore} 
+          placement="path-map" 
+        />
       )}
 
       {actionError && (
@@ -414,7 +420,7 @@ export default function PathMap({
                           </div>
                         </div>
 
-                        {lockStatus.reason === 'appliedMath_magnate_only' && (
+                        {lockStatus.reason === 'magnate_only' && (
                           <div className="space-y-2">
                             <button
                               onClick={onNavigateToStore}

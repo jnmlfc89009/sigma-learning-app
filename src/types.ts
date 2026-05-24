@@ -24,6 +24,16 @@ export interface UserProgress {
     progressPercent: number; // e.g. 0
     completedLevels: Record<number, { stars: number; completedAt: string }>;
   };
+  calculus: {
+    level: number; // 1-12
+    progressPercent: number; // e.g. 0
+    completedLevels: Record<number, { stars: number; completedAt: string }>;
+  };
+  microeconomics: {
+    level: number; // 1-12
+    progressPercent: number; // e.g. 0
+    completedLevels: Record<number, { stars: number; completedAt: string }>;
+  };
 }
 
 export interface UserProfile {
@@ -37,11 +47,13 @@ export interface UserProfile {
   createdAt: string;
   avatarSeed: string; // Used to generate nice avatars
   progress: UserProgress;
-  unlockedTrack?: 'personalFinance' | 'accounting' | 'statistics';
+  unlockedTrack?: 'personalFinance' | 'accounting' | 'statistics' | 'calculus' | 'microeconomics';
   unlockedLevels?: Record<string, number[]>; // Maps track name -> array of unlocked level numbers (e.g. [4, 5])
   unlockedItems?: string[];
   activeTitle?: string;
   sponsoredCount?: number;
+  googleLinked?: boolean;
+  facebookLinked?: boolean;
 }
 
 export interface Question {
@@ -63,7 +75,7 @@ export interface LearningLevel {
   levelNumber: number;
   title: string;
   description: string;
-  track: 'personalFinance' | 'accounting' | 'statistics' | 'appliedMath';
+  track: 'personalFinance' | 'accounting' | 'statistics' | 'appliedMath' | 'calculus' | 'microeconomics';
   chapters: {
     id: string;
     title: string;
