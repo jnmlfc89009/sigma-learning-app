@@ -270,13 +270,6 @@ export default function PathMap({
         })}
       </div>
 
-      {user.tier === 'scholar' && (
-        <SponsorAdBanner 
-          onNavigateToStore={onNavigateToStore} 
-          placement="path-map" 
-        />
-      )}
-
       {actionError && (
         <div className="p-4 bg-red-50 border-l-4 border-red-500 rounded-xl text-red-700 text-xs font-sans flex items-center gap-2">
           <ShieldAlert className="w-4 h-4 shrink-0" />
@@ -556,6 +549,15 @@ export default function PathMap({
           })}
         </div>
       </div>
+
+      {user.tier === 'scholar' && (
+        <div className="mt-8">
+          <SponsorAdBanner 
+            onNavigateToStore={onNavigateToStore} 
+            placement="path-map" 
+          />
+        </div>
+      )}
     </div>
   );
 }

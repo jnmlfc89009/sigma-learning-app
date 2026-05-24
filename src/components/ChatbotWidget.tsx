@@ -64,7 +64,7 @@ export default function ChatbotWidget({ user }: ChatbotWidgetProps) {
     }
   }, [messages, isOpen, ticketStatus]);
 
-  const handlePostUserMessage = (text: string) => {
+  const handlePostUserMessage = async (text: string) => {
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const userMsg: ChatMessage = {
       id: Math.random().toString(),
@@ -76,50 +76,41 @@ export default function ChatbotWidget({ user }: ChatbotWidgetProps) {
     setMessages(prev => [...prev, userMsg]);
     setHasInteracted(true);
     
-    // Simulate thinking then generate response
-    setTimeout(() => {
-      const botResponse = getBotResponse(text);
-      setMessages(prev => [...prev, {
+    // Simulate thinking then generate response from backend
+    setMessages(prev => [...prev, {
+      id: "thinking_bot",
+      sender: 'bot',
+      text: "...",
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    }]);
+
+    try {
+      const response = await fetch('/api/chatbot/ask', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('sigma_token')}`
+        },
+        body: JSON.stringify({
+          query: text,
+          userTier: user.tier
+        })
+      });
+
+      const data = await response.json();
+
+      setMessages(prev => prev.map(m => m.id === "thinking_bot" ? {
+        ...m,
         id: Math.random().toString(),
-        sender: 'bot',
-        text: botResponse,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      }]);
-    }, 600);
-  };
-
-  const getBotResponse = (query: string): string => {
-    const q = query.toLowerCase();
-
-    if (q.includes('gem') || q.includes('diamond')) {
-      return "Gems represent knowledge milestones. You can earn gems by: \n1. Completing lesson chapters (25 💎 for completing, up to 50 💎 for perfect score).\n2. Gaining perfect star ratings.\nScholar tier can also upgrade to Analyst for an instant 500 💎 premium bonus, or Magnate for 2,000 💎.";
+        text: data.reply || data.error || "Sorry, I couldn't process that request."
+      } : m));
+    } catch (e) {
+      setMessages(prev => prev.map(m => m.id === "thinking_bot" ? {
+        ...m,
+        id: Math.random().toString(),
+        text: "Sorry, there was a network error connecting to the AI services."
+      } : m));
     }
-    if (q.includes('tier') || q.includes('analyst') || q.includes('scholar') || q.includes('limit') || q.includes('locked')) {
-      return "Sigma Learning features three academic tiers:\n\n• Scholar (Free): Locked to Level 3 on all tracks. Clamped sandbox ranges.\n• Analyst Premium: Custom choices to unlock 1 course fully (Levels 1-12). Other courses remain free up to Level 3, and require 100 💎 per higher level.\n• Magnate Premium: Unlocks ALL courses (1-12) with zero gem charges, plus exclusive access to the 'Daily Applied Mathematics' track and full sandbox tools.";
-    }
-    if (q.includes('encrypt') || q.includes('security') || q.includes('aes') || q.includes('decrypted')) {
-      return "Our learning systems encrypt password hashes and transmit payloads securely over HTTPS to safeguard your academic progress. User data is strictly stored locally on your device or in our secure PostgreSQL database.";
-    }
-    if (q.includes('applied') || q.includes('math') || q.includes('tax')) {
-      return "Applied Mathematics includes extreme calculation drills: Progressive taxation formulas, Caesar Cipher key shifts, Electoral power indexes, and Appliance consumption wattage calculations. Because it covers professional-grade modeling, it is strictly reserved for academic Magnate subscribers.";
-    }
-    if (q.includes('hello') || q.includes('hi ') || q.includes('hey')) {
-      return `Hello ${user.username}! Ask me anything about curriculum limits, gems, or courses, or click one of the quick buttons below.`;
-    }
-    if (q.includes('whatsapp') || q.includes('wa.me') || q.includes('phone') || q.includes('contact')) {
-      if (user.tier === 'magnate') {
-        return `For direct live messaging support with one of our specialists, click the green 'Chat on WhatsApp Support 🟢' button inside this widget, or reach out to +${waNumber}. You can also modify this phone number using the gear icon ⚙️ in the top header.`;
-      }
-      return "Direct Messaging line via WhatsApp is an exclusive tier benefit reserved strictly for Magnate Tier academic members. Standard academic assistance is handled through our automated curriculum library. Navigate to the Premium Store to elevate your subscription!";
-    }
-    if (q.includes('help') || q.includes('support') || q.includes('offline') || q.includes('agent')) {
-      if (user.tier === 'magnate') {
-        return `For direct live support, you can reach out via WhatsApp Support at any time! Click the 'Chat on WhatsApp Support 🟢' button below, message us at +${waNumber}, or register a prioritized offline system ticket right here.`;
-      }
-      return "Standard academic assistance is provided through this automated chatbot dashboard. Premium live customer support (including direct WhatsApp queue and offline ticketing) is available exclusively for Magnate Tier members. Navigate to the Premium Store to unlock all benefits!";
-    }
-
-    return "Thank you for asking. I'm trained with MIT OCW Syllabi indices. If that is related to gems, user subscription tiers, sandbox equations, or AES key verification, please select one of the FAQ shortcuts below for immediate clarity!";
   };
 
   const handleSendInput = (e: React.FormEvent) => {

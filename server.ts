@@ -1050,13 +1050,46 @@ app.get('/api/security/logs', async (req, res) => {
   res.json(logs);
 });
 
-// 8. Expose Supabase database parameters to client securely
-app.get('/api/supabase-config', (req, res) => {
-  res.json({
-    supabaseUrl: process.env.SUPABASE_URL || '',
-    supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-  });
+import { GoogleGenAI } from "@google/genai";
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+
+app.post('/api/chatbot/ask', authenticateMiddleware, async (req: any, res) => {
+  const { query, userTier } = req.body;
+  if (!query) {
+    return res.status(400).json({ error: "Missing query." });
+  }
+
+  if (!process.env.GEMINI_API_KEY) {
+    return res.json({ 
+      reply: "The AI assistant is currently offline because the GEMINI_API_KEY environment variable is not configured. Please add it to your server/Vercel settings."
+    });
+  }
+
+  try {
+    const systemInstruction = `You are the Sigma Learning Assistant, a helpful AI tutor for an educational platform.
+The user is on the '${userTier}' tier.
+Be concise. If they ask about gems, explain they earn them by completing lessons, and Magnate/Analyst get instant bonuses.
+If they ask about tiers: Scholar (Free, up to Level 3), Analyst (Custom unlock, 100 gems per further level), Magnate (Unlocks all, plus exclusive tracks).
+If they ask about applied math, it is reserved for Magnate tier.
+If they ask for live support or offline support (like WhatsApp), explain that it is only available to 'magnate' tier users via the 'Chat on WhatsApp Support' button below.
+`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [{ role: "user", parts: [{ text: query }] }],
+      config: {
+        systemInstruction: systemInstruction,
+      }
+    });
+
+    res.json({ reply: response.text });
+  } catch (err: any) {
+    console.error("Gemini API error:", err);
+    res.status(500).json({ error: "Sorry, I am having trouble connecting to my servers right now." });
+  }
 });
+
 
 // Helper to lazily-initialize the Stripe client SDK
 let stripeInstance: Stripe | null = null;

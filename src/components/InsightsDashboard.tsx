@@ -314,13 +314,6 @@ export default function InsightsDashboard({ user, onNavigateToStore }: InsightsD
         </div>
       </div>
 
-      {isScholar && (
-        <SponsorAdBanner 
-          onNavigateToStore={onNavigateToStore} 
-          placement="insights" 
-        />
-      )}
-
       {/* BLOCK 1: MIT COMPREHENSIVE PERSONAL FINANCE - EXPONENTIAL COMPOUND INTEREST CURVE */}
       <div className="bg-white border border-slate-200 border-b-4 rounded-3xl p-6 md:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8 shadow-sm relative">
         <div className="lg:col-span-5 space-y-6">
@@ -787,6 +780,15 @@ export default function InsightsDashboard({ user, onNavigateToStore }: InsightsD
           </div>
         </div>
       </div>
+      
+      {isScholar && (
+        <div className="mt-8">
+          <SponsorAdBanner 
+            onNavigateToStore={onNavigateToStore} 
+            placement="insights" 
+          />
+        </div>
+      )}
     </div>
   );
 }
