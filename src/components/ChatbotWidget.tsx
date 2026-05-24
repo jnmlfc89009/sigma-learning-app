@@ -89,7 +89,7 @@ export default function ChatbotWidget({ user }: ChatbotWidgetProps) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('sigma_token')}`
+          'Authorization': `Bearer ${safeStorage.getItem('sigma_token')}`
         },
         body: JSON.stringify({
           query: text,

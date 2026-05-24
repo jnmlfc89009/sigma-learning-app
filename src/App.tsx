@@ -615,7 +615,7 @@ export default function App() {
         // Play coin / register success audio sound chime!
         if (
           typeof window !== "undefined" &&
-          localStorage.getItem("soundEnabled") !== "false"
+          safeStorage.getItem("soundEnabled") !== "false"
         ) {
           try {
             const ctx = getAudioContext();

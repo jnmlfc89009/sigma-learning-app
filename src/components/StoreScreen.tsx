@@ -1,3 +1,4 @@
+import { safeStorage } from '../lib/safeStorage';
 import { getAudioContext } from "../lib/audio";
 /**
  * @license
@@ -143,7 +144,7 @@ export default function StoreScreen({
     // Play a delightful rolling sound (Web Audio API synth slots)
     if (
       typeof window !== "undefined" &&
-      localStorage.getItem("soundEnabled") !== "false"
+      safeStorage.getItem("soundEnabled") !== "false"
     ) {
       try {
         const ctx = getAudioContext();
@@ -328,7 +329,7 @@ export default function StoreScreen({
         // Play victory sounds
         if (
           typeof window !== "undefined" &&
-          localStorage.getItem("soundEnabled") !== "false"
+          safeStorage.getItem("soundEnabled") !== "false"
         ) {
           const ctx = getAudioContext();
           if (!ctx) return;
@@ -444,7 +445,7 @@ export default function StoreScreen({
       // Play high bell sound
       if (
         typeof window !== "undefined" &&
-        localStorage.getItem("soundEnabled") !== "false"
+        safeStorage.getItem("soundEnabled") !== "false"
       ) {
         const ctx = getAudioContext();
         if (!ctx) return;
@@ -587,7 +588,7 @@ export default function StoreScreen({
       // Play a lovely high bell sound
       if (
         typeof window !== "undefined" &&
-        localStorage.getItem("soundEnabled") !== "false"
+        safeStorage.getItem("soundEnabled") !== "false"
       ) {
         const ctx = getAudioContext();
         if (!ctx) return;

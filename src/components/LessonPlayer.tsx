@@ -1,3 +1,4 @@
+import { safeStorage } from '../lib/safeStorage';
 import { getAudioContext } from "../lib/audio";
 /**
  * @license
@@ -51,7 +52,7 @@ interface LessonPlayerProps {
 // Synthesis of chimes using standard browser Web Audio API
 function playChime(correct: boolean) {
   if (typeof window === "undefined") return;
-  if (localStorage.getItem("soundEnabled") === "false") return;
+  if (safeStorage.getItem("soundEnabled") === "false") return;
   try {
     const ctx = getAudioContext();
     if (!ctx) return;
@@ -130,7 +131,7 @@ export default function LessonPlayer({
     "reading" | "practice" | "quiz" | "mastered"
   >("reading");
   const [isSoundEnabled, setIsSoundEnabled] = useState(
-    () => localStorage.getItem("soundEnabled") !== "false",
+    () => safeStorage.getItem("soundEnabled") !== "false",
   );
   const [practiceStep, setPracticeStep] = useState(0);
   const [isCardFlipped, setIsCardFlipped] = useState(false);
@@ -459,7 +460,7 @@ export default function LessonPlayer({
           onClick={() => {
             const newState = !isSoundEnabled;
             setIsSoundEnabled(newState);
-            localStorage.setItem("soundEnabled", newState ? "true" : "false");
+            safeStorage.setItem("soundEnabled", newState ? "true" : "false");
 
             // Immediate auditory feedback for the toggle itself
             const ctx = getAudioContext();
